@@ -1,6 +1,6 @@
 "use server";
 
-import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
+import { assertMember, assertOwns, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { ProcedureStatus } from "@prisma/client";

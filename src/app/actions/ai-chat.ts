@@ -1,6 +1,6 @@
 "use server";
 
-import { AuthError, assertOwns, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
+import { assertOwns, requireAdminCtx } from "@/lib/auth/guards";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";

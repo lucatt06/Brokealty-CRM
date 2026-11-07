@@ -1,6 +1,6 @@
 "use server";
 
-import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";

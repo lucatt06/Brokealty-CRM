@@ -1,9 +1,8 @@
 "use server";
 
-import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
+import { assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { renderContractPdf } from "@/lib/pdf/contract-pdf";
 import { uploadContractPdf } from "@/lib/storage/upload-contract-pdf";
 
