@@ -15,7 +15,7 @@ type ContractRow = {
   sentAt: string | null;
   signedAt: string | null;
   createdAt: string;
-  salesOrder: { id: string; orderNumber: string; leadName: string; vehicleLabel: string };
+  salesOrder: { id: string; orderNumber: string; leadName: string; propertyLabel: string };
 };
 
 const STATUS_CLS: Record<ContractRow["status"], string> = {
@@ -75,7 +75,7 @@ export function ContratosListClient({ contracts, isAdmin }: { contracts: Contrac
                 <tr>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 px-4">Orden</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Cliente</th>
-                  <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Vehículo</th>
+                  <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Propiedad</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Plantilla</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Estado</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Documento</th>
@@ -89,7 +89,7 @@ export function ContratosListClient({ contracts, isAdmin }: { contracts: Contrac
                       <Link href={`/ordenes-venta/${c.salesOrder.id}`} className="font-semibold text-primary hover:underline">{c.salesOrder.orderNumber}</Link>
                     </td>
                     <td className="py-2.5 pr-3 text-gray-700">{c.salesOrder.leadName}</td>
-                    <td className="py-2.5 pr-3 text-gray-500">{c.salesOrder.vehicleLabel}</td>
+                    <td className="py-2.5 pr-3 text-gray-500">{c.salesOrder.propertyLabel}</td>
                     <td className="py-2.5 pr-3 text-gray-500">{c.templateName}</td>
                     <td className="py-2.5 pr-3">
                       <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", STATUS_CLS[c.status])}>{STATUS_LABEL[c.status]}</span>

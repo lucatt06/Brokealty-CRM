@@ -8,7 +8,7 @@ import { getWorkspaceAiKey } from "@/lib/integrations/ai-keys";
 
 const TRIGGERS = [
   "LEAD_CREATED", "LEAD_STAGE_CHANGED", "MESSAGE_RECEIVED", "APPOINTMENT_CREATED",
-  "APPOINTMENT_REMINDER", "VEHICLE_SOLD", "TASK_DUE", "INACTIVITY", "CUSTOM",
+  "APPOINTMENT_REMINDER", "PROPERTY_SOLD", "TASK_DUE", "INACTIVITY", "CUSTOM",
 ] as const;
 
 const ACTION_TYPES = [
@@ -77,7 +77,7 @@ export async function proposeAutomationFromText(workspaceId: string, text: strin
       model: "claude-sonnet-5",
       max_tokens: 1024,
       system:
-        "Eres el constructor de automatizaciones de un CRM para dealers de vehículos. " +
+        "Eres el constructor de automatizaciones de un CRM para inmobiliarias. " +
         "Convierte la descripción en texto libre del usuario en una automatización estructurada usando SIEMPRE la tool propose_automation. " +
         "Si el usuario no especifica un canal de mensaje, usa WHATSAPP_PERSONAL. Sé conservador: solo incluye acciones que el usuario pidió explícita o implícitamente.",
       tools: [PROPOSE_TOOL],

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SaaS multi-tenant de CRM vertical para el sector **inmobiliario** (República Dominicana / LATAM). Derivado de "Autónomo" (CRM de dealers de vehículos). Arquitectura preparada para N inmobiliarias desde el día 1.
 
-> **Estado de la migración desde Autónomo:** infraestructura ya movida a Railway (Postgres + Auth propia + Bucket + SSE) y contabilidad/facturación electrónica eliminadas. **Pendiente:** transformar el dominio `Vehicle` → `Property` (schema, inventario, match inverso, cascada de venta, textos). Hasta entonces el código todavía habla de vehículos en varios módulos y en `docs/`.
+> **Origen:** derivado de "Autónomo" (CRM de dealers de vehículos). El dominio ya es inmobiliario: `Property` (tipo, operación venta/alquiler, ubicación, habitaciones/baños/m², precios, propietario, captador), Match Inverso por tipo/zona/presupuesto, Conduces y contabilidad eliminados. Los `docs/0*.md` son los documentos originales de Autónomo y **siguen hablando de vehículos** — no son fuente de verdad del dominio actual.
 
 ---
 
@@ -92,12 +92,12 @@ prisma/
 - **Todo dato sensible tiene `workspaceId`**. Toda query lo incluye sin excepción.
 - **No hay RLS** (ya no se usa Supabase): el aislamiento depende 100% de filtrar por `workspaceId` en cada query. `/api/realtime` también filtra por workspace en el servidor.
 - Un usuario del workspace A **nunca** puede ver datos del workspace B.
-- El Super Admin (Lucas) es cross-workspace — `workspaceId = null` en User.
+- El Super Admin es cross-workspace por diseño (ve cualquier workspace desde el selector).
 
 ### Roles
-- `SUPER_ADMIN` — Lucas, acceso a todos los workspaces
-- `ADMIN_DEALER` — dueño/gerente del dealer, su workspace completo
-- `VENDEDOR` — solo sus leads, sus métricas
+- `SUPER_ADMIN` — dueño de la plataforma; el primer usuario registrado. Acceso a todos los workspaces
+- `ADMIN` — dueño/gerente de la inmobiliaria, su workspace completo
+- `AGENTE` — solo sus leads y sus métricas
 
 ### Agente IA (nativo)
 - **Sin Retell, sin n8n.** Orquestación 100% en código Next.js.
@@ -112,9 +112,9 @@ prisma/
 
 ### Cascadas críticas
 Hay 3 cascadas que deben ser **transacciones atómicas**:
-1. **Vehículo vendido** → 11 pasos (estado, deal, comisión, despublicación multi-canal, reasignación de leads).
-2. **Match Inverso** → al crear vehículo, notificar vendedores, timeout 30 min → auto-notificar lead.
-3. **Check-in post-visita** → 2h después de cita completada → WhatsApp al vendedor.
+1. **Propiedad vendida/alquilada** (`completeSalesOrder`) → estado, deal ganado, comisión (usa `commissionPct` de la propiedad si existe), trámites post-venta, seguimiento a otros leads interesados.
+2. **Match Inverso** → al crear/duplicar una propiedad, notificar al agente del lead que la buscaba, timeout 30 min → auto-notificar al lead.
+3. **Check-in post-visita** → 2h después de cita completada → WhatsApp al agente.
 
 ---
 
@@ -134,7 +134,7 @@ Inspirado en **Go High Level (GHL)**:
 
 - `cn()` de `lib/utils.ts` (clsx + tailwind-merge) para clases condicionales.
 - Enums Prisma en SCREAMING_SNAKE_CASE (ya definidos en schema).
-- `workspaceId` es sagrado: validar en Server Action, verificar en query, asegurar con RLS.
+- `workspaceId` es sagrado: en Server Actions **derivarlo de la sesión** (`getActiveWorkspace()`), nunca aceptarlo del cliente, y verificar que el registro objetivo pertenezca al workspace (ver `src/app/actions/properties.ts` como patrón).
 - Strings mágicos → constantes con `as const`.
 - Nunca `any` en TypeScript — usar `unknown` si no se conoce el tipo.
 - Migraciones: `prisma migrate dev`. Excepción: triggers/funciones SQL (p. ej. `realtime_notify`) van como migración SQL escrita a mano.
@@ -147,14 +147,14 @@ Inspirado en **Go High Level (GHL)**:
 ```
 Fase 1A — Fundación:      Next.js + Prisma + Postgres (Railway) + Auth propia + multi-tenancy
 Fase 1B — CRM Core:       Leads, Pipeline Kanban, Tareas, Citas
-Fase 1C — Inventario:     Vehicles CRUD, fotos, alertas proactivas, price history
+Fase 1C — Catálogo:       Properties CRUD, fotos, alertas proactivas, price history
 Fase 1D — Conversaciones: Bandeja unificada, webhooks canales, multimedia
 Fase 1E — Agentes IA:     Knowledge Base, AiAgent CRUD, Tool Registry, orquestador
 Fase 1F — Cascadas:       Match Inverso, despublicación, reasignación de leads
 Fase 1G — WhatsApp Admin: Parser intents, confirmaciones, acciones críticas
 Fase 1H — Automatizaciones: Constructor visual + Chat IA constructor
 Fase 1I — Comisiones:     CommissionRule, cálculo auto, aprobación, reportes
-Fase 1J — Integraciones:  Portales (Supercarros, CarMax RD, Encuentra24), Lead Ads, Google Calendar
+Fase 1J — Integraciones:  Portales inmobiliarios (por definir), Lead Ads, Google Calendar
 Fase 1K — Pulido:         Audit Logs, búsqueda global, ClickHouse, tests E2E
 ```
 
@@ -166,10 +166,10 @@ Fase 1K — Pulido:         Audit Logs, búsqueda global, ClickHouse, tests E2E
 |---|---|
 | Verde | Disponible, completado, éxito |
 | Azul | Reservado, activo, en proceso |
-| Naranja | Atención requerida (30+ días en lote) |
-| Amarillo | Bloqueado, espera (45+ días) |
-| Morado | Crítico (60+ días), comisión aprobada |
-| Rojo | Vendido, vencido, crítico |
+| Naranja | Atención requerida (30+ días publicada) |
+| Amarillo | Bloqueado, espera (60+ días) |
+| Morado | Crítico (90+ días), comisión aprobada |
+| Rojo | Vendida/alquilada, vencido, crítico |
 | Gris | Inactivo, cancelado |
 
 ---

@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
       <Updated>Última actualización: 20 de julio de 2026</Updated>
 
       <P>
-        Brokealty CRM (&quot;Brokealty CRM&quot;, &quot;nosotros&quot;) es una plataforma SaaS de CRM para concesionarios de vehículos
+        Brokealty CRM (&quot;Brokealty CRM&quot;, &quot;nosotros&quot;) es una plataforma SaaS de CRM para concesionarios de propiedades
         (&quot;Dealers&quot;, &quot;Clientes&quot;) que permite gestionar leads, inventario, conversaciones con compradores y
         automatizaciones asistidas por inteligencia artificial. Cada Dealer que usa Brokealty CRM administra su
         propia cuenta (&quot;workspace&quot;) de forma independiente y aislada de los demás.
@@ -26,7 +26,7 @@ export default function PrivacyPolicyPage() {
       <Ul>
         <li><strong>Datos de cuenta:</strong> nombre, correo, teléfono de los usuarios del Dealer (vendedores, administradores).</li>
         <li><strong>Datos de leads/clientes del Dealer:</strong> nombre, teléfono, correo, y el contenido de sus conversaciones (texto, imágenes, notas de voz, documentos) enviadas por WhatsApp, Facebook Messenger, Instagram u otros canales conectados por el Dealer.</li>
-        <li><strong>Datos de negocio del Dealer:</strong> inventario de vehículos, negocios (deals), cotizaciones, órdenes de venta, comisiones y demás información operativa que el Dealer ingresa a la plataforma.</li>
+        <li><strong>Datos de negocio del Dealer:</strong> inventario de propiedades, negocios (deals), cotizaciones, órdenes de venta, comisiones y demás información operativa que el Dealer ingresa a la plataforma.</li>
         <li><strong>Datos técnicos:</strong> registros de uso de la plataforma, dirección IP y metadatos de dispositivo, con fines de seguridad y soporte.</li>
       </Ul>
 

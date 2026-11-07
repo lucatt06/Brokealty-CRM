@@ -12,7 +12,7 @@ export default async function SalesOrdersPage() {
       where: { workspaceId: ctx.workspace.id },
       include: {
         lead: { select: { id: true, firstName: true, lastName: true } },
-        vehicle: { select: { id: true, make: true, model: true, year: true } },
+        property: { select: { id: true, title: true } },
         authorizations: { where: { status: "PENDIENTE" }, select: { id: true } },
       },
       orderBy: { createdAt: "desc" },

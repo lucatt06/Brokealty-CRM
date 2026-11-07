@@ -31,21 +31,21 @@ import { ActivityTimeline } from "@/components/shared/activity-timeline";
 type Stage = { id: string; name: string; color: string; order: number; probability: number };
 type DealActivity = { id: string; type: string; description: string; createdAt: string };
 type DealLead = { id: string; firstName: string; lastName: string | null; phone: string; activities: DealActivity[] };
-type DealVehicle = { id: string; make: string; model: string; year: number };
+type DealProperty = { id: string; title: string };
 type DealUser = { id: string; name: string };
 type Deal = {
-  id: string; workspaceId: string; leadId: string; vehicleId: string | null;
+  id: string; workspaceId: string; leadId: string; propertyId: string | null;
   stageId: string | null; pipelineId: string;
   value: number | null; currency: string; probability: number;
   status: string; closedAt: string | null; lostReason: string | null;
   assignedToId: string | null; assignedTo: DealUser | null;
   expectedCloseAt: string | null;
   createdAt: string; updatedAt: string;
-  lead: DealLead; vehicle: DealVehicle | null; stage: Stage | null;
+  lead: DealLead; property: DealProperty | null; stage: Stage | null;
 };
 type Pipeline = { id: string; name: string; stages: Stage[]; deals: Deal[] };
 type Lead = { id: string; firstName: string; lastName: string | null; phone: string };
-type Vehicle = { id: string; make: string; model: string; year: number; priceDOP: number | null };
+type Property = { id: string; title: string; priceDOP: number | null };
 type WorkspaceUser = { id: string; name: string };
 
 // ── Helpers ──────────────────────────────────────────────
@@ -118,12 +118,12 @@ function DealCard({
       <div className="px-3.5 pt-3.5 pb-2.5 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-gray-900 leading-snug">
-            {deal.vehicle
-              ? `${deal.vehicle.make} · ${deal.vehicle.model} ${deal.vehicle.year}`
+            {deal.property
+              ? deal.property.title
               : `${deal.lead.firstName} ${deal.lead.lastName ?? ""}`}
           </p>
           <p className="text-[11px] text-gray-400 mt-0.5 truncate">
-            {deal.vehicle
+            {deal.property
               ? deal.assignedTo?.name ?? "Sin asignar"
               : deal.stage?.name ?? "Sin etapa"}
           </p>
@@ -287,7 +287,7 @@ function ClosedDealCard({ deal, onClick, isWon }: { deal: Deal; onClick: () => v
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-semibold text-gray-900 truncate">
-            {deal.vehicle ? `${deal.vehicle.make} ${deal.vehicle.model} ${deal.vehicle.year}` : `${deal.lead.firstName} ${deal.lead.lastName ?? ""}`}
+            {deal.property ? `${deal.property.title}` : `${deal.lead.firstName} ${deal.lead.lastName ?? ""}`}
           </p>
           <p className="text-[10px] text-gray-400 truncate">{deal.lead.firstName} {deal.lead.lastName ?? ""}</p>
         </div>
@@ -322,7 +322,7 @@ function DealListView({
       <table className="w-full min-w-[900px] text-[12px]">
         <thead>
           <tr className="border-b border-gray-100">
-            {["Lead", "Vehículo", "Etapa", "Valor", "Prob.", "Asignado", "Días", "Cierre esp.", "Estado"].map(h => (
+            {["Lead", "Propiedad", "Etapa", "Valor", "Prob.", "Asignado", "Días", "Cierre esp.", "Estado"].map(h => (
               <th key={h} className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider pb-2 pr-4 first:pl-0">{h}</th>
             ))}
           </tr>
@@ -340,7 +340,7 @@ function DealListView({
                   <p className="text-[10px] text-gray-400">{d.lead.phone}</p>
                 </td>
                 <td className="py-3 pr-4 text-gray-600">
-                  {d.vehicle ? `${d.vehicle.make} ${d.vehicle.model} ${d.vehicle.year}` : <span className="text-gray-300">—</span>}
+                  {d.property ? `${d.property.title}` : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="py-3 pr-4">
                   {stage ? (
@@ -388,17 +388,17 @@ function DealListView({
 
 // ── Create Deal Dialog ────────────────────────────────────
 function CreateDealDialog({
-  open, onClose, stages, leads, vehicles, workspaceId, pipelineId, defaultStageId,
+  open, onClose, stages, leads, properties, workspaceId, pipelineId, defaultStageId,
 }: {
   open: boolean; onClose: () => void;
-  stages: Stage[]; leads: Lead[]; vehicles: Vehicle[];
+  stages: Stage[]; leads: Lead[]; properties: Property[];
   workspaceId: string; pipelineId: string; defaultStageId?: string;
 }) {
   const router = useRouter();
   const [leadSearch, setLeadSearch] = useState("");
-  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [propertySearch, setPropertySearch] = useState("");
   const [form, setForm] = useState({
-    leadId: "", vehicleId: "", stageId: defaultStageId ?? stages[0]?.id ?? "",
+    leadId: "", propertyId: "", stageId: defaultStageId ?? stages[0]?.id ?? "",
     value: "", currency: "DOP",
   });
   const [saving, setSaving] = useState(false);
@@ -407,22 +407,22 @@ function CreateDealDialog({
   const filteredLeads = leads.filter(l =>
     `${l.firstName} ${l.lastName ?? ""} ${l.phone}`.toLowerCase().includes(leadSearch.toLowerCase())
   ).slice(0, 8);
-  const filteredVehicles = vehicles.filter(v =>
-    `${v.make} ${v.model} ${v.year}`.toLowerCase().includes(vehicleSearch.toLowerCase())
+  const filteredProperties = properties.filter(v =>
+    `${v.title}`.toLowerCase().includes(propertySearch.toLowerCase())
   ).slice(0, 8);
   const selectedLead = leads.find(l => l.id === form.leadId);
-  const selectedVehicle = vehicles.find(v => v.id === form.vehicleId);
+  const selectedProperty = properties.find(v => v.id === form.propertyId);
 
   async function handleCreate() {
     if (!form.leadId || !form.stageId) return;
     setSaving(true);
     await createDeal(workspaceId, pipelineId, form.leadId, form.stageId,
-      form.value ? parseFloat(form.value) : null, form.currency, form.vehicleId || undefined);
+      form.value ? parseFloat(form.value) : null, form.currency, form.propertyId || undefined);
     router.refresh();
     setSaving(false);
     onClose();
-    setForm({ leadId: "", vehicleId: "", stageId: stages[0]?.id ?? "", value: "", currency: "DOP" });
-    setLeadSearch(""); setVehicleSearch("");
+    setForm({ leadId: "", propertyId: "", stageId: stages[0]?.id ?? "", value: "", currency: "DOP" });
+    setLeadSearch(""); setPropertySearch("");
   }
 
   if (!open) return null;
@@ -478,33 +478,33 @@ function CreateDealDialog({
                   </div>
                 )}
               </div>
-              {/* Vehicle */}
+              {/* Property */}
               <div>
-                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Vehículo <span className="font-normal normal-case">(opcional)</span></label>
-                {selectedVehicle ? (
+                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Propiedad <span className="font-normal normal-case">(opcional)</span></label>
+                {selectedProperty ? (
                   <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
                     <Car className="h-4 w-4 text-gray-300 shrink-0" />
-                    <span className="text-sm flex-1">{selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year}</span>
-                    <button onClick={() => { set("vehicleId", ""); setVehicleSearch(""); }} className="text-gray-400 hover:text-gray-600"><X className="h-3.5 w-3.5" /></button>
+                    <span className="text-sm flex-1">{selectedProperty.title}</span>
+                    <button onClick={() => { set("propertyId", ""); setPropertySearch(""); }} className="text-gray-400 hover:text-gray-600"><X className="h-3.5 w-3.5" /></button>
                   </div>
                 ) : (
                   <div className="relative">
-                    <input value={vehicleSearch} onChange={e => setVehicleSearch(e.target.value)}
-                      placeholder="Buscar vehículo…"
+                    <input value={propertySearch} onChange={e => setPropertySearch(e.target.value)}
+                      placeholder="Buscar propiedad…"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary bg-white" />
-                    {vehicleSearch && (
+                    {propertySearch && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-[180px] overflow-y-auto">
-                        {filteredVehicles.length === 0
+                        {filteredProperties.length === 0
                           ? <p className="text-xs text-gray-400 p-3">Sin resultados</p>
-                          : filteredVehicles.map(v => (
+                          : filteredProperties.map(v => (
                             <button key={v.id} onClick={() => {
-                              set("vehicleId", v.id);
+                              set("propertyId", v.id);
                               if (v.priceDOP) set("value", String(v.priceDOP));
-                              setVehicleSearch("");
+                              setPropertySearch("");
                             }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
                               <Car className="h-3.5 w-3.5 text-gray-300 shrink-0" />
                               <div>
-                                <p className="font-medium text-[12px]">{v.make} {v.model} {v.year}</p>
+                                <p className="font-medium text-[12px]">{v.title}</p>
                                 {v.priceDOP && <p className="text-[10px] text-gray-400">{fmt(v.priceDOP, "DOP")}</p>}
                               </div>
                             </button>
@@ -629,9 +629,9 @@ function DealDetailSheet({
 
               {/* Deal summary chips */}
               <div className="flex items-center gap-2 mt-3 flex-wrap">
-                {d.vehicle && (
+                {d.property && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 bg-gray-100 rounded-full px-2.5 py-1">
-                    <Car className="h-3 w-3" /> {d.vehicle.make} {d.vehicle.model} {d.vehicle.year}
+                    <Car className="h-3 w-3" /> {d.property.title}
                   </span>
                 )}
                 {/* Valor — click para editar */}
@@ -791,10 +791,10 @@ function DealDetailSheet({
 
 // ── KanbanBoard ───────────────────────────────────────────
 export function KanbanBoard({
-  pipeline, workspaceId, leads, vehicles, users,
+  pipeline, workspaceId, leads, properties, users,
 }: {
   pipeline: Pipeline; workspaceId: string;
-  leads: Lead[]; vehicles: Vehicle[]; users: WorkspaceUser[];
+  leads: Lead[]; properties: Property[]; users: WorkspaceUser[];
 }) {
   const router = useRouter();
   const [deals, setDeals] = useState<Deal[]>(pipeline.deals);
@@ -862,7 +862,7 @@ export function KanbanBoard({
   function filterAndSort(list: Deal[]) {
     let r = list;
     if (search) r = r.filter(d =>
-      `${d.lead.firstName} ${d.lead.lastName ?? ""} ${d.vehicle?.make ?? ""} ${d.vehicle?.model ?? ""}`.toLowerCase().includes(search.toLowerCase())
+      `${d.lead.firstName} ${d.lead.lastName ?? ""} ${d.property?.title ?? ""}`.toLowerCase().includes(search.toLowerCase())
     );
     if (filterStage) r = r.filter(d => d.stageId === filterStage);
     if (filterAssignee === "__unassigned__") r = r.filter(d => !d.assignedToId);
@@ -924,7 +924,7 @@ export function KanbanBoard({
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300" />
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar negocio, lead o vehículo…"
+              placeholder="Buscar negocio, lead o propiedad…"
               className="w-full pl-8 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-primary bg-white" />
           </div>
 
@@ -1114,7 +1114,7 @@ export function KanbanBoard({
 
       <CreateDealDialog
         open={createOpen} onClose={() => setCreateOpen(false)}
-        stages={pipeline.stages} leads={leads} vehicles={vehicles}
+        stages={pipeline.stages} leads={leads} properties={properties}
         workspaceId={workspaceId} pipelineId={pipeline.id}
         defaultStageId={defaultStageId}
       />

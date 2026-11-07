@@ -7,7 +7,7 @@ import { getAvailabilityTool } from "../agent/tools/get-availability";
 import { updateUserDetailsTool } from "../agent/tools/update-user-details";
 import { removeTagTool } from "../agent/tools/remove-tag";
 import { searchInventoryTool } from "../agent/tools/search-inventory";
-import { sendVehiclePhotosTool } from "../agent/tools/send-vehicle-photos";
+import { sendPropertyPhotosTool } from "../agent/tools/send-property-photos";
 import { sendMessageAction } from "./handlers/send-message";
 import { addTagAction } from "./handlers/add-tag";
 import { changeStageAction } from "./handlers/change-stage";
@@ -31,7 +31,7 @@ export const ACTION_REGISTRY: Record<string, ActionDefinition> = {
   [updateUserDetailsTool.key]: updateUserDetailsTool,
   [removeTagTool.key]: removeTagTool,
   [searchInventoryTool.key]: searchInventoryTool,
-  [sendVehiclePhotosTool.key]: sendVehiclePhotosTool,
+  [sendPropertyPhotosTool.key]: sendPropertyPhotosTool,
   [sendMessageAction.key]: sendMessageAction,
   [addTagAction.key]: addTagAction,
   [changeStageAction.key]: changeStageAction,

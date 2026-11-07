@@ -52,7 +52,7 @@ export async function createAppointment(
   await prisma.appointment.create({
     data: {
       workspaceId, leadId, title,
-      type: type as "VISITA_DEALER" | "LLAMADA" | "VIDEO_LLAMADA" | "TEST_DRIVE" | "ENTREGA" | "SEGUIMIENTO",
+      type: type as "VISITA_PROPIEDAD" | "LLAMADA" | "VIDEO_LLAMADA" | "FIRMA_CONTRATO" | "ENTREGA_LLAVES" | "SEGUIMIENTO",
       startAt: new Date(startAt),
       endAt: new Date(endAt),
       notes: notes || null,

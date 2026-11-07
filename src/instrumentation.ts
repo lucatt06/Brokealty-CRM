@@ -12,7 +12,6 @@
 const JOBS: { path: string; everyMs: number }[] = [
   { path: "/api/jobs/scheduled-tasks", everyMs: 2 * 60_000 },
   { path: "/api/jobs/run-automations", everyMs: 60 * 60_000 },
-  { path: "/api/jobs/conduces-overdue", everyMs: 30 * 60_000 },
   { path: "/api/jobs/quotes-expiration", everyMs: 24 * 60 * 60_000 },
   { path: "/api/jobs/procedures-overdue", everyMs: 24 * 60 * 60_000 },
 ];

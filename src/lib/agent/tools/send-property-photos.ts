@@ -2,43 +2,43 @@ import { prisma } from "@/lib/prisma";
 import type { AgentToolDefinition } from "../types";
 import { sendOutboundWhatsAppMedia } from "@/lib/messaging/send-outbound";
 
-// Límite defensivo: si un vehículo tiene 20 fotos cargadas, no queremos saturar
+// Límite defensivo: si una propiedad tiene 20 fotos cargadas, no queremos saturar
 // el chat del contacto ni disparar 20 llamadas seguidas al proveedor de WhatsApp.
 const MAX_PHOTOS = 6;
 
-export const sendVehiclePhotosTool: AgentToolDefinition = {
-  key: "send_vehicle_photos",
+export const sendPropertyPhotosTool: AgentToolDefinition = {
+  key: "send_property_photos",
   anthropicSchema: {
-    name: "send_vehicle_photos",
+    name: "send_property_photos",
     description:
-      "Envía las fotos de un vehículo del inventario al contacto, por el mismo canal de la conversación actual. " +
-      "Usa primero search_inventory para encontrar el id del vehículo correcto antes de llamar a esta herramienta.",
+      "Envía las fotos de una propiedad del inventario al contacto, por el mismo canal de la conversación actual. " +
+      "Usa primero search_inventory para encontrar el id de la propiedad correcto antes de llamar a esta herramienta.",
     input_schema: {
       type: "object",
       properties: {
-        vehicleId: { type: "string", description: "id del vehículo (obtenido de search_inventory)" },
+        propertyId: { type: "string", description: "id de la propiedad (obtenido de search_inventory)" },
       },
-      required: ["vehicleId"],
+      required: ["propertyId"],
     },
   },
   execute: async (rawInput, ctx) => {
-    const input = rawInput as { vehicleId?: string };
+    const input = rawInput as { propertyId?: string };
     if (!ctx.conversationId) return "No hay conversación asociada; no se pudieron enviar las fotos.";
-    if (!input.vehicleId) return "Falta el id del vehículo.";
+    if (!input.propertyId) return "Falta el id de la propiedad.";
 
-    const vehicle = await prisma.vehicle.findFirst({
-      where: { id: input.vehicleId, workspaceId: ctx.workspaceId },
+    const property = await prisma.property.findFirst({
+      where: { id: input.propertyId, workspaceId: ctx.workspaceId },
       include: { photos: { orderBy: [{ isPrimary: "desc" }, { order: "asc" }] } },
     });
-    if (!vehicle) return "No se encontró ese vehículo en el inventario (verifica el id con search_inventory).";
-    if (!vehicle.photos.length) return `El ${vehicle.make} ${vehicle.model} ${vehicle.year} no tiene fotos cargadas todavía.`;
+    if (!property) return "No se encontró esa propiedad en el inventario (verifica el id con search_inventory).";
+    if (!property.photos.length) return `La propiedad ${property.title} no tiene fotos cargadas todavía.`;
 
     const conversation = await prisma.conversation.findUnique({ where: { id: ctx.conversationId } });
     if (!conversation) return "Conversación no encontrada.";
 
-    const caption = `${vehicle.make} ${vehicle.model} ${vehicle.year}`;
+    const caption = `${property.title}`;
     const canSendExternally = (conversation.channel === "WHATSAPP_PERSONAL" || conversation.channel === "WHATSAPP") && !!conversation.externalId;
-    const photosToSend = vehicle.photos.slice(0, MAX_PHOTOS);
+    const photosToSend = property.photos.slice(0, MAX_PHOTOS);
 
     let sent = 0;
     for (const photo of photosToSend) {
@@ -64,8 +64,8 @@ export const sendVehiclePhotosTool: AgentToolDefinition = {
 
     await prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: new Date() } });
 
-    const omitted = vehicle.photos.length - photosToSend.length;
-    return `Se enviaron ${sent} foto(s) del ${vehicle.make} ${vehicle.model} ${vehicle.year}.` +
+    const omitted = property.photos.length - photosToSend.length;
+    return `Se enviaron ${sent} foto(s) del ${property.title}.` +
       (omitted > 0 ? ` (${omitted} foto(s) adicional(es) no se enviaron por el límite de ${MAX_PHOTOS}).` : "");
   },
 };

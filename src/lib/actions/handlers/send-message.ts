@@ -68,7 +68,7 @@ export const sendMessageAction: ActionDefinition = {
           apiKey: resendConfig.apiKey,
           from: resendConfig.fromEmail,
           to: conversation.lead.email,
-          subject: `Mensaje de ${conversation.workspace?.name ?? "tu dealer"}`,
+          subject: `Mensaje de ${conversation.workspace?.name ?? "tu inmobiliaria"}`,
           html: content.replace(/\n/g, "<br>"),
         }).catch((err) => {
           console.error("Fallo enviando email por Resend (automatización):", err);

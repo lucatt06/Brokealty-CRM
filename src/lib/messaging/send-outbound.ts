@@ -54,7 +54,7 @@ export async function sendOutboundWhatsApp(params: {
   return { externalId: null };
 }
 
-/** Igual que sendOutboundWhatsApp pero para una foto/imagen — usado por send_vehicle_photos. */
+/** Igual que sendOutboundWhatsApp pero para una foto/imagen — usado por send_property_photos. */
 export async function sendOutboundWhatsAppMedia(params: {
   workspaceId: string;
   channel: "WHATSAPP_PERSONAL" | "WHATSAPP";

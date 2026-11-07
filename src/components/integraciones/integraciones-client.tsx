@@ -401,7 +401,7 @@ function ResendModal({ initialFromEmail, onClose, onSave }: {
         </div>
         <div className="space-y-2">
           <label className="text-[12px] font-semibold text-gray-700 block">Correo remitente</label>
-          <input type="email" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="ventas@tudealer.com"
+          <input type="email" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="ventas@tuinmobiliaria.com"
             className="w-full border border-gray-200 rounded-md px-3 py-2 text-[13px] outline-none focus:border-primary" />
           <p className="text-[11px] text-muted-foreground">Debe ser un dominio verificado en tu cuenta de Resend.</p>
         </div>

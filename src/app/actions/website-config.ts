@@ -6,8 +6,8 @@ import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 
 async function requireAdmin() {
   const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN_DEALER" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Admin Dealer puede editar la página web.");
+  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
+    throw new Error("Solo un Administrador puede editar la página web.");
   }
   return ctx;
 }

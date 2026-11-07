@@ -10,7 +10,7 @@ import { ModalShell } from "@/components/agentes/action-modals";
 
 type DocRow = {
   id: string;
-  type: "CEDULA" | "PASAPORTE" | "CONTRATO" | "COMPROBANTE_PAGO" | "DDC_SOPORTE" | "MATRICULA" | "SEGURO" | "OTRO";
+  type: "CEDULA" | "PASAPORTE" | "CONTRATO" | "COMPROBANTE_PAGO" | "DDC_SOPORTE" | "TITULO_PROPIEDAD" | "CERTIFICACION_TITULO" | "OTRO";
   name: string;
   url: string;
   mimeType: string | null;
@@ -23,7 +23,7 @@ type DocRow = {
 
 const TYPE_LABEL: Record<DocRow["type"], string> = {
   CEDULA: "Cédula", PASAPORTE: "Pasaporte", CONTRATO: "Contrato", COMPROBANTE_PAGO: "Comprobante de pago",
-  DDC_SOPORTE: "Soporte DDC", MATRICULA: "Matrícula", SEGURO: "Seguro", OTRO: "Otro",
+  DDC_SOPORTE: "Soporte DDC", TITULO_PROPIEDAD: "Título de propiedad", CERTIFICACION_TITULO: "Certificación de título", OTRO: "Otro",
 };
 
 function fmtDate(iso: string) {

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
 import { syncAppointmentToGoogle, deleteAppointmentFromGoogle } from "@/lib/google-calendar/sync";
 
-type ApptType = "VISITA_DEALER" | "LLAMADA" | "VIDEO_LLAMADA" | "TEST_DRIVE" | "ENTREGA" | "SEGUIMIENTO";
+type ApptType = "VISITA_PROPIEDAD" | "LLAMADA" | "VIDEO_LLAMADA" | "FIRMA_CONTRATO" | "ENTREGA_LLAVES" | "SEGUIMIENTO";
 type ApptStatus = "AGENDADA" | "CONFIRMADA" | "COMPLETADA" | "CANCELADA" | "NO_SHOW";
 
 export async function createAppointmentCalendar(data: {

@@ -34,7 +34,7 @@ export async function listTeamMembers(workspaceId: string) {
   return rows.map((r) => ({ ...r, joinedAt: r.joinedAt.toISOString() }));
 }
 
-export async function inviteTeamMember(workspaceId: string, email: string, name: string, role: "ADMIN_DEALER" | "VENDEDOR") {
+export async function inviteTeamMember(workspaceId: string, email: string, name: string, role: "ADMIN" | "AGENTE") {
   const trimmedEmail = email.trim().toLowerCase();
   if (!trimmedEmail) throw new Error("El correo es obligatorio.");
 
@@ -62,7 +62,7 @@ export async function inviteTeamMember(workspaceId: string, email: string, name:
   revalidatePath("/configuracion");
 }
 
-export async function updateMemberRole(workspaceUserId: string, role: "ADMIN_DEALER" | "VENDEDOR") {
+export async function updateMemberRole(workspaceUserId: string, role: "ADMIN" | "AGENTE") {
   await prisma.workspaceUser.update({ where: { id: workspaceUserId }, data: { role } });
   revalidatePath("/configuracion");
 }

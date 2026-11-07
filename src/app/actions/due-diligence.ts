@@ -7,8 +7,8 @@ import type { IdDocumentType, RiskLevel } from "@prisma/client";
 
 async function requireAdmin() {
   const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN_DEALER" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Admin Dealer puede aprobar o rechazar una Debida Diligencia.");
+  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
+    throw new Error("Solo un Administrador puede aprobar o rechazar una Debida Diligencia.");
   }
   return ctx;
 }

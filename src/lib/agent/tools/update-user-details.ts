@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { AgentToolDefinition } from "../types";
 
-const FIELD_KEYS = ["source", "stage", "vehicleInterest", "budget", "custom"];
+const FIELD_KEYS = ["source", "stage", "propertyInterest", "budget", "custom"];
 
 export const updateUserDetailsTool: AgentToolDefinition = {
   key: "update_user_details",
@@ -30,8 +30,8 @@ export const updateUserDetailsTool: AgentToolDefinition = {
       case "stage":
         await prisma.lead.update({ where: { id: ctx.leadId }, data: { stage: value } });
         break;
-      case "vehicleInterest":
-        await prisma.lead.update({ where: { id: ctx.leadId }, data: { desiredModel: value } });
+      case "propertyInterest":
+        await prisma.lead.update({ where: { id: ctx.leadId }, data: { desiredSector: value } });
         break;
       case "budget": {
         const num = Number(value.replace(/[^0-9.]/g, ""));

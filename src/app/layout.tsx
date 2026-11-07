@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Brokealty CRM — CRM Inmobiliario",
-  description: "Plataforma SaaS de CRM Vertical para Dealers de Vehículos con IA Nativa",
+  description: "Plataforma SaaS de CRM Vertical para Inmobiliarias con IA Nativa",
 };
 
 export default function RootLayout({

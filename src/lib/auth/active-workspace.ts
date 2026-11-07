@@ -16,7 +16,7 @@ export type ActiveWorkspaceContext = {
  * Resuelve el tenant activo de la sesión actual:
  * - Super Admin: puede estar viendo cualquier workspace (elegido vía cookie, con
  *   fallback al primero disponible) — es cross-workspace por diseño.
- * - Admin Dealer / Vendedor: siempre su único workspace, la cookie no aplica.
+ * - Administrador / Agente: siempre su único workspace, la cookie no aplica.
  */
 export const getActiveWorkspace = cache(async (): Promise<ActiveWorkspaceContext | null> => {
   const user = await getSessionUser();

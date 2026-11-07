@@ -47,8 +47,8 @@ const DEFAULT_STAGES = [
   { name: "Nuevo", order: 0, color: "#3b82f6", probability: 10 },
   { name: "Contactado", order: 1, color: "#8b5cf6", probability: 25 },
   { name: "Calificado", order: 2, color: "#f59e0b", probability: 40 },
-  { name: "Cita Agendada", order: 3, color: "#f97316", probability: 60 },
-  { name: "Visitó Dealer", order: 4, color: "#ec4899", probability: 75 },
+  { name: "Visita Agendada", order: 3, color: "#f97316", probability: 60 },
+  { name: "Visitó Propiedad", order: 4, color: "#ec4899", probability: 75 },
   { name: "En Negociación", order: 5, color: "#ef4444", probability: 85 },
 ];
 

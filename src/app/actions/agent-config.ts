@@ -66,8 +66,8 @@ const BUILT_IN_TOOLS: Omit<Prisma.AgentToolCreateManyInput, "workspaceId">[] = [
   { key: "update_appointment_details", name: "Update Appointment Details", description: "Changes or reschedules an appointment", category: "PLATFORM", method: "POST", examplePrompt: "Can we move it to Friday?", isBuiltIn: true },
   { key: "update_user_details", name: "Update User Details", description: "Saves verified contact info to your CRM", category: "PLATFORM", method: "POST", examplePrompt: "My email is sarah@example.com.", isBuiltIn: true },
   { key: "remove_tag", name: "Remove Tag", description: "Removes a tag from the contact's record", category: "REMOVE_TAG", method: "POST", examplePrompt: "This lead is no longer interested.", isBuiltIn: true },
-  { key: "search_inventory", name: "Search Inventory", description: "Busca vehículos disponibles en el inventario por marca, modelo, año o precio", category: "PLATFORM", method: "POST", examplePrompt: "¿Qué Toyota Corolla tienen disponibles?", isBuiltIn: true },
-  { key: "send_vehicle_photos", name: "Send Vehicle Photos", description: "Envía las fotos de un vehículo del inventario al contacto", category: "PLATFORM", method: "POST", examplePrompt: "¿Me puedes mandar fotos de ese carro?", isBuiltIn: true },
+  { key: "search_inventory", name: "Search Inventory", description: "Busca propiedades disponibles en el catálogo por tipo, zona, habitaciones o precio", category: "PLATFORM", method: "POST", examplePrompt: "¿Qué Toyota Corolla tienen disponibles?", isBuiltIn: true },
+  { key: "send_property_photos", name: "Send Property Photos", description: "Envía las fotos de una propiedad del catálogo al contacto", category: "PLATFORM", method: "POST", examplePrompt: "¿Me puedes mandar fotos de ese carro?", isBuiltIn: true },
 ];
 
 export async function ensureBuiltInTools(workspaceId: string) {

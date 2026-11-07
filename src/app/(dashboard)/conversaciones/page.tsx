@@ -8,7 +8,7 @@ export default async function ConversacionesPage() {
   if (!ctx) redirect("/login");
   const workspaceId = ctx.workspace.id;
 
-  const [conversations, pipeline, vehicles] = await Promise.all([
+  const [conversations, pipeline, properties] = await Promise.all([
     prisma.conversation.findMany({
       where: { workspaceId },
       include: {
@@ -24,7 +24,7 @@ export default async function ConversacionesPage() {
               select: {
                 id: true, status: true, value: true, currency: true,
                 stage: { select: { id: true, name: true, color: true } },
-                vehicle: { select: { make: true, model: true, year: true } },
+                property: { select: { title: true } },
                 payments: {
                   select: { id: true, amount: true, currency: true, method: true, note: true, paidAt: true },
                   orderBy: { paidAt: "desc" },
@@ -50,9 +50,9 @@ export default async function ConversacionesPage() {
       where: { workspaceId },
       include: { stages: { select: { id: true, name: true, color: true, order: true }, orderBy: { order: "asc" } } },
     }),
-    prisma.vehicle.findMany({
+    prisma.property.findMany({
       where: { workspaceId },
-      select: { id: true, make: true, model: true, year: true, priceDOP: true },
+      select: { id: true, title: true, priceDOP: true },
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
@@ -93,7 +93,7 @@ export default async function ConversacionesPage() {
       conversations={serialized}
       stages={stages}
       pipelineId={pipeline?.id ?? null}
-      vehicles={vehicles}
+      properties={properties}
     />
   );
 }

@@ -59,7 +59,7 @@ export default function RegisterPage() {
           Crear cuenta
         </h1>
         <p className="text-sm text-muted-foreground mb-6">
-          Empieza a gestionar tu dealer hoy
+          Empieza a gestionar tu inmobiliaria hoy
         </p>
 
         <form onSubmit={handleRegister} className="space-y-4">

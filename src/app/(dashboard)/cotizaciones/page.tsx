@@ -8,17 +8,17 @@ export default async function QuotesPage() {
   if (!ctx) redirect("/login");
   const workspaceId = ctx.workspace.id;
 
-  const [quotes, leads, vehicles, deals] = await Promise.all([
+  const [quotes, leads, properties, deals] = await Promise.all([
     prisma.quote.findMany({
       where: { workspaceId },
       include: {
         lead: { select: { id: true, firstName: true, lastName: true } },
-        vehicle: { select: { id: true, make: true, model: true, year: true } },
+        property: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
     prisma.lead.findMany({ where: { workspaceId, isActive: true }, select: { id: true, firstName: true, lastName: true, phone: true }, orderBy: { createdAt: "desc" }, take: 200 }),
-    prisma.vehicle.findMany({ where: { workspaceId, status: "DISPONIBLE" }, select: { id: true, make: true, model: true, year: true, priceDOP: true }, orderBy: { createdAt: "desc" } }),
+    prisma.property.findMany({ where: { workspaceId, status: "DISPONIBLE" }, select: { id: true, title: true, priceDOP: true }, orderBy: { createdAt: "desc" } }),
     prisma.deal.findMany({ where: { workspaceId, status: "OPEN" }, select: { id: true, leadId: true }, orderBy: { createdAt: "desc" } }),
   ]);
 
@@ -31,5 +31,5 @@ export default async function QuotesPage() {
     updatedAt: q.updatedAt.toISOString(),
   }));
 
-  return <QuotesClient quotes={serialized} leads={leads} vehicles={vehicles} dealsByLead={deals} workspaceId={workspaceId} />;
+  return <QuotesClient quotes={serialized} leads={leads} properties={properties} dealsByLead={deals} workspaceId={workspaceId} />;
 }

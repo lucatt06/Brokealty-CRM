@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * Job diario (Documento 5, sección 3.8): detecta PostSaleProcedure PENDIENTE/EN_PROCESO
- * con dueDate vencido y notifica al responsable + a los Admin Dealer del workspace —
+ * con dueDate vencido y notifica al responsable + a los Administrador del workspace —
  * mismo patrón que el job de conduces vencidos de 2A.
  */
 export async function runProceduresOverdueCheck() {
@@ -14,7 +14,7 @@ export async function runProceduresOverdueCheck() {
 
   for (const procedure of overdue) {
     const admins = await prisma.workspaceUser.findMany({
-      where: { workspaceId: procedure.workspaceId, role: "ADMIN_DEALER", isActive: true },
+      where: { workspaceId: procedure.workspaceId, role: { in: ["ADMIN", "SUPER_ADMIN"] }, isActive: true },
       select: { userId: true },
     });
     const notifyUserIds = Array.from(new Set([...(procedure.assignedToId ? [procedure.assignedToId] : []), ...admins.map((a) => a.userId)]));

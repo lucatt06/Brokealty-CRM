@@ -6,7 +6,7 @@ import { ContratosListClient } from "@/components/contracts/contratos-list-clien
 export default async function ContratosPage() {
   const ctx = await getActiveWorkspace();
   if (!ctx) redirect("/login");
-  const isAdmin = ctx.role === "ADMIN_DEALER" || ctx.isSuperAdmin;
+  const isAdmin = ctx.role === "ADMIN" || ctx.isSuperAdmin;
 
   const contracts = await prisma.contract.findMany({
     where: { workspaceId: ctx.workspace.id },
@@ -15,7 +15,7 @@ export default async function ContratosPage() {
         select: {
           id: true, orderNumber: true,
           lead: { select: { firstName: true, lastName: true } },
-          vehicle: { select: { make: true, model: true, year: true } },
+          property: { select: { title: true } },
         },
       },
       template: { select: { name: true } },
@@ -36,7 +36,7 @@ export default async function ContratosPage() {
       id: c.salesOrder.id,
       orderNumber: c.salesOrder.orderNumber,
       leadName: `${c.salesOrder.lead.firstName} ${c.salesOrder.lead.lastName ?? ""}`.trim(),
-      vehicleLabel: `${c.salesOrder.vehicle.make} ${c.salesOrder.vehicle.model} ${c.salesOrder.vehicle.year}`,
+      propertyLabel: `${c.salesOrder.property.title}`,
     },
   }));
 

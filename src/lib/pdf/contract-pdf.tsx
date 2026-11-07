@@ -35,7 +35,7 @@ function ContractDocument({ data }: { data: ContractPdfData }) {
         <Text style={styles.body}>{data.renderedBody}</Text>
 
         <View style={styles.signatures}>
-          <Text style={styles.signatureBox}>Vendedor</Text>
+          <Text style={styles.signatureBox}>Agente</Text>
           <Text style={styles.signatureBox}>Comprador</Text>
         </View>
       </Page>

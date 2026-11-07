@@ -96,17 +96,17 @@ export const SCHEDULED_TASK_HANDLERS: Partial<Record<ScheduledTaskType, Schedule
   },
 
   MATCH_INVERSO_TIMEOUT: async (task) => {
-    const payload = task.payload as { leadId: string; vehicleId: string; taskId: string };
-    const [lead, vehicle, matchTask] = await Promise.all([
+    const payload = task.payload as { leadId: string; propertyId: string; taskId: string };
+    const [lead, property, matchTask] = await Promise.all([
       prisma.lead.findUnique({ where: { id: payload.leadId } }),
-      prisma.vehicle.findUnique({ where: { id: payload.vehicleId } }),
+      prisma.property.findUnique({ where: { id: payload.propertyId } }),
       prisma.task.findUnique({ where: { id: payload.taskId } }),
     ]);
-    if (!lead || !vehicle) return;
-    // El vendedor completó la tarea a tiempo -> ya actuó, no hace falta avisarle al lead directo.
+    if (!lead || !property) return;
+    // El agente completó la tarea a tiempo -> ya actuó, no hace falta avisarle al lead directo.
     if (matchTask?.status === "COMPLETADA") return;
-    // El vehículo ya no está disponible (se vendió/reservó mientras tanto) -> ya no aplica.
-    if (vehicle.status !== "DISPONIBLE") return;
+    // La propiedad ya no está disponible (se vendió/reservó mientras tanto) -> ya no aplica.
+    if (property.status !== "DISPONIBLE") return;
     if (!lead.phone) return;
 
     // No todos los leads tienen conversación de WhatsApp todavía (solo se crea hoy
@@ -125,7 +125,7 @@ export const SCHEDULED_TASK_HANDLERS: Partial<Record<ScheduledTaskType, Schedule
     }
     if (!conversation.externalId) return;
 
-    const content = `¡Hola ${lead.firstName}! Tenemos disponible el ${vehicle.make} ${vehicle.model} ${vehicle.year} que buscabas. ¿Te gustaría más información o agendar una visita?`;
+    const content = `¡Hola ${lead.firstName}! Tenemos disponible la propiedad ${property.title} que buscabas. ¿Te gustaría más información o agendar una visita?`;
     await sendMessageAction.execute({ content }, {
       workspaceId: lead.workspaceId, leadId: lead.id, conversationId: conversation.id, agentId: null,
     });

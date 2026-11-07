@@ -24,7 +24,7 @@ export async function sendMessage(conversationId: string, channel: Channel, cont
   if (!conversation) throw new Error("Conversación no encontrada");
 
   // Si el agente principal tiene "dormir al enviar mensaje manual" activo, un mensaje
-  // escrito a mano por el dealer pausa al bot en esta conversación (mismo mecanismo
+  // escrito a mano por el inmobiliaria pausa al bot en esta conversación (mismo mecanismo
   // que Stop Bot / Human Handover: isAiHandled = false).
   const shouldSleep = conversation.isAiHandled
     ? Boolean(
@@ -72,7 +72,7 @@ export async function sendMessage(conversationId: string, channel: Channel, cont
         apiKey: resendConfig.apiKey,
         from: resendConfig.fromEmail,
         to: conversation.lead.email,
-        subject: `Mensaje de ${conversation.workspace?.name ?? "tu dealer"}`,
+        subject: `Mensaje de ${conversation.workspace?.name ?? "tu inmobiliaria"}`,
         html: trimmed.replace(/\n/g, "<br>"),
       }).catch((err) => {
         console.error("Fallo enviando email manual por Resend:", err);
@@ -86,7 +86,7 @@ export async function sendMessage(conversationId: string, channel: Channel, cont
 export async function setConversationAiHandled(conversationId: string, isAiHandled: boolean) {
   await prisma.conversation.update({ where: { id: conversationId }, data: { isAiHandled } });
   // El toggle manual es la señal más fuerte — cancela cualquier reactivación automática
-  // pendiente (Stop Bot / Human Handover) para que no le pise la decisión del dealer.
+  // pendiente (Stop Bot / Human Handover) para que no le pise la decisión del inmobiliaria.
   await cancelScheduledTask(`reactivate:${conversationId}`);
   revalidatePath("/conversaciones");
 }

@@ -45,7 +45,7 @@ export const aiAgentStepAction: ActionDefinition = {
         client,
         model: "claude-sonnet-5",
         system:
-          "Eres un asistente autónomo de un CRM para dealers de vehículos, ejecutando un paso de una automatización. " +
+          "Eres un asistente autónomo de un CRM para inmobiliarias, ejecutando un paso de una automatización. " +
           "Decide qué acciones tomar, usando solo las herramientas disponibles, para cumplir la instrucción. " +
           "No estás hablando con el cliente — solo actúa usando las herramientas.",
         tools,

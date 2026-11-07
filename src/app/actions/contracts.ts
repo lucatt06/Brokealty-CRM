@@ -8,8 +8,8 @@ import { uploadContractPdf } from "@/lib/storage/upload-contract-pdf";
 
 async function requireAdmin() {
   const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN_DEALER" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Admin Dealer puede administrar plantillas de contrato.");
+  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
+    throw new Error("Solo un Administrador puede administrar plantillas de contrato.");
   }
   return ctx;
 }
@@ -52,7 +52,7 @@ export async function generateContract(salesOrderId: string, templateId: string)
       where: { id: salesOrderId },
       include: {
         lead: { select: { firstName: true, lastName: true, phone: true } },
-        vehicle: { select: { make: true, model: true, year: true, vin: true } },
+        property: { select: { title: true, sector: true, city: true, address: true } },
         soldBy: { select: { name: true } },
       },
     }),
@@ -64,13 +64,13 @@ export async function generateContract(salesOrderId: string, templateId: string)
   const values: Record<string, string> = {
     "cliente.nombre": `${order.lead.firstName} ${order.lead.lastName ?? ""}`.trim(),
     "cliente.telefono": order.lead.phone,
-    "vehiculo.info": `${order.vehicle.make} ${order.vehicle.model} ${order.vehicle.year}`,
-    "vehiculo.vin": order.vehicle.vin ?? "—",
+    "propiedad.info": order.property.title,
+    "propiedad.direccion": [order.property.address, order.property.sector, order.property.city].filter(Boolean).join(", ") || "—",
     "orden.numero": order.orderNumber,
     "orden.precio": new Intl.NumberFormat("es-DO", { style: "currency", currency: order.currency, minimumFractionDigits: 0 }).format(order.salePrice),
     "orden.moneda": order.currency,
     "orden.fecha": new Intl.DateTimeFormat("es-DO", { dateStyle: "medium" }).format(new Date()),
-    "vendedor.nombre": order.soldBy.name,
+    "agente.nombre": order.soldBy.name,
   };
   const renderedBody = resolvePlaceholders(template.bodyTemplate, values);
 

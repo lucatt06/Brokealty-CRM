@@ -13,7 +13,7 @@ type Order = {
   currency: string;
   createdAt: string;
   lead: { id: string; firstName: string; lastName: string | null };
-  vehicle: { id: string; make: string; model: string; year: number };
+  property: { id: string; title: string };
   authorizations: { id: string }[];
 };
 
@@ -77,7 +77,7 @@ export function SalesOrdersListClient({ orders, pendingProcedures }: { orders: O
                   <tr>
                     <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 px-4">Orden</th>
                     <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Cliente</th>
-                    <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Vehículo</th>
+                    <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Propiedad</th>
                     <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Precio</th>
                     <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Estado</th>
                     <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-4">Creada</th>
@@ -90,7 +90,7 @@ export function SalesOrdersListClient({ orders, pendingProcedures }: { orders: O
                         <Link href={`/ordenes-venta/${o.id}`} className="font-semibold text-primary hover:underline">{o.orderNumber}</Link>
                       </td>
                       <td className="py-2.5 pr-3 text-gray-700">{o.lead.firstName} {o.lead.lastName ?? ""}</td>
-                      <td className="py-2.5 pr-3 text-gray-500">{o.vehicle.make} {o.vehicle.model} {o.vehicle.year}</td>
+                      <td className="py-2.5 pr-3 text-gray-500">{o.property.title}</td>
                       <td className="py-2.5 pr-3 font-semibold text-gray-800">{formatCurrency(o.salePrice, o.currency === "USD" ? "USD" : "DOP")}</td>
                       <td className="py-2.5 pr-3">
                         <div className="flex items-center gap-1.5">

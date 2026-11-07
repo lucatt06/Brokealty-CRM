@@ -7,7 +7,7 @@ export default async function ComisionesPage() {
   const ctx = await getActiveWorkspace();
   if (!ctx) redirect("/login");
   const workspaceId = ctx.workspace.id;
-  const isAdmin = ctx.role === "ADMIN_DEALER" || ctx.isSuperAdmin;
+  const isAdmin = ctx.role === "ADMIN" || ctx.isSuperAdmin;
 
   const [commissions, rules] = await Promise.all([
     prisma.commission.findMany({
@@ -16,7 +16,7 @@ export default async function ComisionesPage() {
         deal: {
           select: {
             lead: { select: { firstName: true, lastName: true } },
-            vehicle: { select: { make: true, model: true, year: true } },
+            property: { select: { title: true } },
           },
         },
         user: { select: { id: true, name: true } },
@@ -34,7 +34,7 @@ export default async function ComisionesPage() {
     id: c.id,
     dealId: c.dealId,
     leadName: [c.deal.lead.firstName, c.deal.lead.lastName].filter(Boolean).join(" "),
-    vehicleLabel: c.deal.vehicle ? `${c.deal.vehicle.make} ${c.deal.vehicle.model} ${c.deal.vehicle.year}` : null,
+    propertyLabel: c.deal.property ? `${c.deal.property.title}` : null,
     userId: c.user.id,
     userName: c.user.name,
     ruleName: c.rule?.name ?? null,

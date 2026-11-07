@@ -63,7 +63,7 @@ export function PaginaWebTab({ workspaceId, config, slug }: { workspaceId: strin
       <div className="flex items-center justify-between pb-3 border-b border-gray-100">
         <div>
           <p className="text-[13px] font-semibold text-gray-900">Catálogo público</p>
-          <p className="text-[11.5px] text-muted-foreground">Muestra tu inventario disponible en una página pública, sin necesidad de sesión.</p>
+          <p className="text-[11.5px] text-muted-foreground">Muestra las propiedades disponibles de tu catálogo en una página pública, sin necesidad de sesión.</p>
         </div>
         <a href={catalogUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[12px] text-primary hover:underline shrink-0">
           Ver catálogo <ExternalLink className="h-3 w-3" />

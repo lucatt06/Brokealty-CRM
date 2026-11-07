@@ -14,12 +14,12 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       include: {
         assignedUser: { select: { id: true, name: true } },
         tags: true,
-        interestedVehicle: { select: { id: true, make: true, model: true, year: true } },
+        interestedProperty: { select: { id: true, title: true } },
         activities: { orderBy: { createdAt: "asc" } },
         deals: {
           include: {
             stage: { select: { id: true, name: true, color: true } },
-            vehicle: { select: { make: true, model: true, year: true } },
+            property: { select: { title: true } },
             payments: {
               select: { id: true, amount: true, currency: true, method: true, note: true, paidAt: true },
               orderBy: { paidAt: "desc" },
@@ -100,7 +100,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       users={users.map((wu) => wu.user)}
       stages={stages}
       workspaceId={workspaceId}
-      canManage={ctx.role === "ADMIN_DEALER" || ctx.isSuperAdmin}
+      canManage={ctx.role === "ADMIN" || ctx.isSuperAdmin}
     />
   );
 }

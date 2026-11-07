@@ -157,7 +157,7 @@ export function AppointmentBookingModal({ initial, workflows, otherAgents, onClo
         <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
           <Calendar className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
           <p className="text-[11.5px] text-gray-500 leading-relaxed">
-            Las citas se agendan en el <span className="font-semibold text-gray-700">Calendario de citas</span>. El propósito de cada cita (Test Drive, Entrega, etc.) se define al momento de agendarla.
+            Las citas se agendan en el <span className="font-semibold text-gray-700">Calendario de citas</span>. El propósito de cada cita (Firma de contrato, Entrega, etc.) se define al momento de agendarla.
           </p>
         </div>
         <div>
@@ -388,7 +388,7 @@ export type ContactInfoConfig = { fields: FieldUpdate[] };
 const CONTACT_FIELD_OPTIONS = [
   { key: "source", label: "Fuente (source)" },
   { key: "stage", label: "Etapa del pipeline" },
-  { key: "vehicleInterest", label: "Vehículo de interés" },
+  { key: "propertyInterest", label: "Propiedad de interés" },
   { key: "budget", label: "Presupuesto estimado" },
   { key: "custom", label: "Otro campo personalizado…" },
 ];
@@ -619,7 +619,7 @@ export function StopBotModal({ initial, tags, onClose, onSave }: {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {tags.length === 0 && <p className="text-[11px] text-gray-400 px-2 py-3 text-center">Sin etiquetas — créalas desde un vehículo o lead</p>}
+                {tags.length === 0 && <p className="text-[11px] text-gray-400 px-2 py-3 text-center">Sin etiquetas — créalas desde una propiedad o lead</p>}
                 {tags.map((t) => (
                   <DropdownMenuItem key={t.id} onSelect={(e) => e.preventDefault()} onClick={() => toggleTag(t.id)} className="text-xs gap-2">
                     <div className={cn("h-3.5 w-3.5 rounded border flex items-center justify-center", active.tagIds.includes(t.id) ? "bg-primary border-primary" : "border-gray-300")}>
@@ -779,7 +779,7 @@ export function HumanHandoverModal({ initial, users, tags, onClose, onSave }: {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {tags.length === 0 && <p className="text-[11px] text-gray-400 px-2 py-3 text-center">Sin etiquetas — créalas desde un vehículo o lead</p>}
+                {tags.length === 0 && <p className="text-[11px] text-gray-400 px-2 py-3 text-center">Sin etiquetas — créalas desde una propiedad o lead</p>}
                 {tags.map((t) => (
                   <DropdownMenuItem key={t.id} onSelect={(e) => e.preventDefault()} onClick={() => toggleTag(t.id)} className="text-xs gap-2">
                     <div className={cn("h-3.5 w-3.5 rounded border flex items-center justify-center", active.tagIds.includes(t.id) ? "bg-primary border-primary" : "border-gray-300")}>

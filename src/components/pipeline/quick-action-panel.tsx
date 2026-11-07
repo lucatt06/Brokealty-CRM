@@ -346,18 +346,18 @@ function TaskPanel({ deal, onClose }: { deal: PanelDeal; onClose: () => void }) 
 
 // ── Appointment Panel ────────────────────────────────────
 const APPT_TYPES = [
-  { id: "VISITA_DEALER", label: "Visita al dealer" },
-  { id: "TEST_DRIVE",    label: "Test drive" },
+  { id: "VISITA_PROPIEDAD", label: "Visita a propiedad" },
+  { id: "FIRMA_CONTRATO",    label: "Firma de contrato" },
   { id: "LLAMADA",       label: "Llamada" },
   { id: "VIDEO_LLAMADA", label: "Videollamada" },
-  { id: "ENTREGA",       label: "Entrega" },
+  { id: "ENTREGA_LLAVES",       label: "Entrega" },
   { id: "SEGUIMIENTO",   label: "Seguimiento" },
 ] as const;
 
 function AppointmentPanel({ deal, onClose }: { deal: PanelDeal; onClose: () => void }) {
   const router = useRouter();
   const [form, setForm] = useState({
-    title: "", type: "VISITA_DEALER" as typeof APPT_TYPES[number]["id"],
+    title: "", type: "VISITA_PROPIEDAD" as typeof APPT_TYPES[number]["id"],
     startAt: "", endAt: "", notes: "",
   });
   const [saving, setSaving] = useState(false);
@@ -377,7 +377,7 @@ function AppointmentPanel({ deal, onClose }: { deal: PanelDeal; onClose: () => v
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Título *</p>
         <input value={form.title} onChange={e => set("title", e.target.value)}
-          placeholder="Ej: Demo Toyota RAV4, Test Drive…"
+          placeholder="Ej: Visita apto Naco, Firma de contrato…"
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary bg-white" autoFocus />
       </div>
 

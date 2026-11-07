@@ -6,7 +6,7 @@ import { DdcListClient } from "@/components/due-diligence/ddc-list-client";
 export default async function DebidaDiligenciaPage() {
   const ctx = await getActiveWorkspace();
   if (!ctx) redirect("/login");
-  const isAdmin = ctx.role === "ADMIN_DEALER" || ctx.isSuperAdmin;
+  const isAdmin = ctx.role === "ADMIN" || ctx.isSuperAdmin;
 
   const records = await prisma.customerDueDiligence.findMany({
     where: { workspaceId: ctx.workspace.id },

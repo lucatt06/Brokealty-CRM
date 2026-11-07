@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
-  Car,
   MessageSquare,
   Kanban,
   Users,
@@ -22,7 +21,6 @@ import {
   DollarSign,
   FileCheck,
   FileText,
-  ClipboardList,
   Globe,
   UserCheck,
   FileSignature,
@@ -52,10 +50,9 @@ function buildNavGroups(badges: { unreadConversaciones: number; pendingTasks: nu
       ],
     },
     {
-      label: "Inventario",
+      label: "Propiedades",
       items: [
-        { label: "Catálogo",     href: "/inventario",  icon: Car },
-        { label: "Conduces",     href: "/conduces",    icon: ClipboardList },
+        { label: "Catálogo",     href: "/inventario",  icon: Building2 },
         { label: "Página Web",   href: "/pagina-web",  icon: Globe },
       ],
     },
@@ -89,7 +86,7 @@ const adminItems: NavItemDef[] = [
 type SidebarBadges = { unreadConversaciones: number; pendingTasks: number };
 type SidebarUser = { name: string; role: string } | null;
 
-const ROLE_LABEL: Record<string, string> = { SUPER_ADMIN: "Super Admin", ADMIN_DEALER: "Admin Dealer", VENDEDOR: "Vendedor" };
+const ROLE_LABEL: Record<string, string> = { SUPER_ADMIN: "Super Admin", ADMIN: "Administrador", AGENTE: "Agente" };
 
 type SidebarWorkspace = { id: string; name: string; slug: string; logoUrl: string | null };
 type SidebarWorkspaceListItem = SidebarWorkspace & { isActive: boolean; plan: string };

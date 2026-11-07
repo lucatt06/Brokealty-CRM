@@ -1,5 +1,7 @@
 "use client";
 
+import { desiredSummary } from "@/lib/properties/labels";
+import type { ListingType, PropertyType } from "@prisma/client";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,8 +36,8 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 const STAGE_COLORS: Record<string, string> = {
   "Nuevo": "bg-blue-100 text-blue-700", "Contactado": "bg-purple-100 text-purple-700",
-  "Calificado": "bg-amber-100 text-amber-700", "Cita Agendada": "bg-orange-100 text-orange-700",
-  "Visitó Dealer": "bg-pink-100 text-pink-700", "En Negociación": "bg-red-100 text-red-700",
+  "Calificado": "bg-amber-100 text-amber-700", "Visita Agendada": "bg-orange-100 text-orange-700",
+  "Visitó Propiedad": "bg-pink-100 text-pink-700", "En Negociación": "bg-red-100 text-red-700",
   "Cerrado": "bg-green-100 text-green-700",
 };
 
@@ -63,10 +65,11 @@ type ExtLead = BaseLead & {
   isActive: boolean; createdAt: string; updatedAt: string; lastContact: string | null;
   notes: string | null;
   budgetMin: number | null; budgetMax: number | null; budgetCurrency: string;
-  desiredMake: string | null; desiredModel: string | null; desiredYear: number | null; desiredColor: string | null;
+  desiredPropertyType: PropertyType | null; desiredListingType: ListingType | null;
+  desiredCity: string | null; desiredSector: string | null; desiredBedrooms: number | null;
   assignedUser: LeadUser | null;
   tags: LeadTag[];
-  interestedVehicle: { id: string; make: string; model: string; year: number } | null;
+  interestedProperty: { id: string; title: string } | null;
   conversations: ExtConversation[];
   dueDiligences: Ddc[];
 };
@@ -379,7 +382,7 @@ function ContactDetailsPanel({ lead, users, workspaceId, conversation }: {
   const totalOpenValue = lead.deals.filter((d) => d.status === "OPEN").reduce((s, d) => s + (d.value ?? 0), 0);
   const totalWonValue = lead.deals.filter((d) => d.status === "WON").reduce((s, d) => s + (d.value ?? 0), 0);
   const hasBudget = lead.budgetMin != null || lead.budgetMax != null;
-  const hasDesired = lead.desiredMake || lead.desiredModel || lead.desiredYear || lead.desiredColor;
+  const hasDesired = !!desiredSummary(lead);
   const lastAiAction = lead.activities.filter((a) => a.type === "AI_ACTION").at(-1);
 
   async function assignTo(userId: string | null) {
@@ -499,18 +502,18 @@ function ContactDetailsPanel({ lead, users, workspaceId, conversation }: {
         )}
       </CollapsibleSection>
 
-      {(hasDesired || hasBudget || lead.interestedVehicle) && (
+      {(hasDesired || hasBudget || lead.interestedProperty) && (
         <CollapsibleSection title="Interés" open={openSections.has("interes")} onToggle={() => toggleSection("interes")}>
           {hasDesired && (
-            <Field label="Busca" value={[lead.desiredMake, lead.desiredModel, lead.desiredYear, lead.desiredColor].filter(Boolean).join(" ")} />
+            <Field label="Busca" value={desiredSummary(lead)} />
           )}
           {hasBudget && (
             <Field label="Presupuesto" value={
               `${lead.budgetMin != null ? fmtMoney(lead.budgetMin, lead.budgetCurrency) : "—"} – ${lead.budgetMax != null ? fmtMoney(lead.budgetMax, lead.budgetCurrency) : "—"}`
             } />
           )}
-          {lead.interestedVehicle && (
-            <Field label="Vehículo de interés" value={`${lead.interestedVehicle.make} ${lead.interestedVehicle.model} ${lead.interestedVehicle.year}`} />
+          {lead.interestedProperty && (
+            <Field label="Propiedad de interés" value={`${lead.interestedProperty.title}`} />
           )}
         </CollapsibleSection>
       )}

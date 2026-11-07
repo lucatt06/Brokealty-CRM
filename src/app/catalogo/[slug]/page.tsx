@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { toPublicVehicle } from "@/lib/catalog/public-vehicle";
+import { toPublicProperty } from "@/lib/catalog/public-property";
 import { CatalogClient } from "@/components/catalog/catalog-client";
 
 async function getPublishedWorkspace(slug: string) {
@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const workspace = await getPublishedWorkspace(params.slug);
   if (!workspace) return {};
   return {
-    title: workspace.websiteConfig!.metaTitle || `Catálogo de vehículos — ${workspace.name}`,
+    title: workspace.websiteConfig!.metaTitle || `Catálogo de propiedades — ${workspace.name}`,
     description: workspace.websiteConfig!.metaDescription || workspace.websiteConfig!.tagline || undefined,
   };
 }
@@ -27,7 +27,7 @@ export default async function CatalogPage({ params }: { params: { slug: string }
   if (!workspace) notFound();
   const config = workspace.websiteConfig!;
 
-  const vehicles = await prisma.vehicle.findMany({
+  const properties = await prisma.property.findMany({
     where: { workspaceId: workspace.id, status: "DISPONIBLE" },
     include: { photos: true },
     orderBy: { createdAt: "desc" },
@@ -42,7 +42,8 @@ export default async function CatalogPage({ params }: { params: { slug: string }
       primaryColor={config.primaryColor}
       tagline={config.tagline}
       heroImageUrl={config.heroImageUrl}
-      vehicles={vehicles.map((v) => toPublicVehicle(v, config.showPrices))}
+      featuredIds={config.featuredPropertyIds}
+      properties={properties.map((p) => toPublicProperty(p, config.showPrices))}
     />
   );
 }

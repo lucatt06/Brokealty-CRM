@@ -56,7 +56,7 @@ export async function createUserWithWorkspace(params: { email: string; name: str
       passwordHash: params.passwordHash,
       workspaces: {
         create: {
-          role: isFirstUser ? "SUPER_ADMIN" : "ADMIN_DEALER",
+          role: isFirstUser ? "SUPER_ADMIN" : "ADMIN",
           workspace: {
             create: {
               name: workspaceName,

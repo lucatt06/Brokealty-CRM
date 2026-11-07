@@ -8,14 +8,14 @@ import type { AuthorizationTrigger } from "@prisma/client";
 
 async function requireAdmin() {
   const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN_DEALER" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Admin Dealer puede aprobar o rechazar autorizaciones de venta.");
+  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
+    throw new Error("Solo un Administrador puede aprobar o rechazar autorizaciones de venta.");
   }
   return ctx;
 }
 
 type EvaluableSalesOrder = { salePrice: number; currency: string; paymentMethod: string };
-type EvaluableVehicle = { minimumPrice: number | null; priceDOP: number | null; priceUSD: number | null };
+type EvaluableProperty = { minimumPrice: number | null; priceDOP: number | null; priceUSD: number | null };
 
 /**
  * Evalúa las AuthorizationRule activas del workspace contra una orden — si no hay
@@ -25,17 +25,17 @@ type EvaluableVehicle = { minimumPrice: number | null; priceDOP: number | null; 
 export async function evaluateAuthorizationTriggers(
   workspaceId: string,
   order: EvaluableSalesOrder,
-  vehicle: EvaluableVehicle
+  property: EvaluableProperty
 ): Promise<{ trigger: AuthorizationTrigger; detail: string }[]> {
   const rules = await prisma.authorizationRule.findMany({ where: { workspaceId, isActive: true } });
   const triggered: { trigger: AuthorizationTrigger; detail: string }[] = [];
 
   for (const rule of rules) {
-    if (rule.trigger === "BELOW_MINIMUM_PRICE" && vehicle.minimumPrice != null && order.salePrice < vehicle.minimumPrice) {
-      triggered.push({ trigger: rule.trigger, detail: `Precio ${order.salePrice} vs mínimo ${vehicle.minimumPrice}` });
+    if (rule.trigger === "BELOW_MINIMUM_PRICE" && property.minimumPrice != null && order.salePrice < property.minimumPrice) {
+      triggered.push({ trigger: rule.trigger, detail: `Precio ${order.salePrice} vs mínimo ${property.minimumPrice}` });
     }
     if (rule.trigger === "DISCOUNT_THRESHOLD" && rule.discountPercentThreshold != null) {
-      const publicPrice = order.currency === "USD" ? vehicle.priceUSD : vehicle.priceDOP;
+      const publicPrice = order.currency === "USD" ? property.priceUSD : property.priceDOP;
       if (publicPrice && publicPrice > 0) {
         const discountPercent = ((publicPrice - order.salePrice) / publicPrice) * 100;
         if (discountPercent > rule.discountPercentThreshold) {
@@ -97,7 +97,7 @@ type RuleInput = {
   trigger: AuthorizationTrigger;
   discountPercentThreshold?: number | null;
   amountThreshold?: number | null;
-  requiredApproverRole?: "ADMIN_DEALER" | "SUPER_ADMIN";
+  requiredApproverRole?: "ADMIN" | "SUPER_ADMIN";
 };
 
 export async function createAuthorizationRule(workspaceId: string, data: RuleInput) {
@@ -107,7 +107,7 @@ export async function createAuthorizationRule(workspaceId: string, data: RuleInp
       workspaceId, name: data.name.trim(), trigger: data.trigger,
       discountPercentThreshold: data.discountPercentThreshold ?? null,
       amountThreshold: data.amountThreshold ?? null,
-      requiredApproverRole: data.requiredApproverRole ?? "ADMIN_DEALER",
+      requiredApproverRole: data.requiredApproverRole ?? "ADMIN",
     },
   });
   revalidatePath("/configuracion");
@@ -121,7 +121,7 @@ export async function updateAuthorizationRule(id: string, data: RuleInput) {
       name: data.name.trim(), trigger: data.trigger,
       discountPercentThreshold: data.discountPercentThreshold ?? null,
       amountThreshold: data.amountThreshold ?? null,
-      requiredApproverRole: data.requiredApproverRole ?? "ADMIN_DEALER",
+      requiredApproverRole: data.requiredApproverRole ?? "ADMIN",
     },
   });
   revalidatePath("/configuracion");

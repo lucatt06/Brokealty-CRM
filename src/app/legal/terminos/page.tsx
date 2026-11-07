@@ -10,7 +10,7 @@ export default function TermsPage() {
       <Updated>Última actualización: 20 de julio de 2026</Updated>
 
       <P>
-        Estos Términos rigen el uso de Brokealty CRM, una plataforma SaaS de CRM para concesionarios de vehículos.
+        Estos Términos rigen el uso de Brokealty CRM, una plataforma SaaS de CRM para concesionarios de propiedades.
         Al crear una cuenta o usar la plataforma, el Dealer y sus usuarios aceptan estos Términos.
       </P>
 

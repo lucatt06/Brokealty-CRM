@@ -2,13 +2,13 @@ import { prisma } from "@/lib/prisma";
 import type { AppointmentType } from "@prisma/client";
 import type { AgentToolDefinition } from "../types";
 
-const VALID_TYPES = ["VISITA_DEALER", "LLAMADA", "VIDEO_LLAMADA", "TEST_DRIVE", "ENTREGA", "SEGUIMIENTO"];
+const VALID_TYPES = ["VISITA_PROPIEDAD", "LLAMADA", "VIDEO_LLAMADA", "FIRMA_CONTRATO", "ENTREGA_LLAVES", "SEGUIMIENTO"];
 
 export const bookAppointmentTool: AgentToolDefinition = {
   key: "book_appointment",
   anthropicSchema: {
     name: "book_appointment",
-    description: "Agenda una cita en el calendario de citas del dealer para el contacto actual.",
+    description: "Agenda una cita en el calendario de citas del inmobiliaria para el contacto actual.",
     input_schema: {
       type: "object",
       properties: {

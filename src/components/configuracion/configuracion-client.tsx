@@ -33,11 +33,11 @@ type AuthorizationRuleInfo = {
   amountThreshold: number | null; requiredApproverRole: string; isActive: boolean;
 };
 
-const ROLE_LABEL: Record<string, string> = { SUPER_ADMIN: "Super Admin", ADMIN_DEALER: "Admin Dealer", VENDEDOR: "Vendedor" };
+const ROLE_LABEL: Record<string, string> = { SUPER_ADMIN: "Super Admin", ADMIN: "Administrador", AGENTE: "Agente" };
 const ROLE_COLOR: Record<string, string> = {
   SUPER_ADMIN: "bg-violet-100 text-violet-700",
-  ADMIN_DEALER: "bg-blue-100 text-blue-700",
-  VENDEDOR: "bg-gray-100 text-gray-600",
+  ADMIN: "bg-blue-100 text-blue-700",
+  AGENTE: "bg-gray-100 text-gray-600",
 };
 const CURRENCIES = ["DOP", "USD"];
 const TIMEZONES = ["America/Santo_Domingo", "America/New_York", "America/Mexico_City", "America/Bogota"];
@@ -49,7 +49,7 @@ export function ConfiguracionClient({ workspace, currentUser, members, websiteCo
   contractTemplates: ContractTemplateInfo[]; authorizationRules: AuthorizationRuleInfo[];
 }) {
   const [tab, setTab] = useState<Tab>("general");
-  const canManageTeam = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ADMIN_DEALER";
+  const canManageTeam = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ADMIN";
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#F5F5F5] p-6">
@@ -233,7 +233,7 @@ function EquipoTab({ workspaceId, members, canManage }: { workspaceId: string; m
   const [inviteOpen, setInviteOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  async function handleRoleChange(memberId: string, role: "ADMIN_DEALER" | "VENDEDOR") {
+  async function handleRoleChange(memberId: string, role: "ADMIN" | "AGENTE") {
     await updateMemberRole(memberId, role);
     setOpenMenuId(null);
     router.refresh();
@@ -275,9 +275,9 @@ function EquipoTab({ workspaceId, members, canManage }: { workspaceId: string; m
                 </button>
                 {openMenuId === m.id && (
                   <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-44">
-                    <button onClick={() => handleRoleChange(m.id, m.role === "ADMIN_DEALER" ? "VENDEDOR" : "ADMIN_DEALER")}
+                    <button onClick={() => handleRoleChange(m.id, m.role === "ADMIN" ? "AGENTE" : "ADMIN")}
                       className="w-full text-left px-3 py-2 text-[12.5px] text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                      <Shield className="h-3.5 w-3.5" /> {m.role === "ADMIN_DEALER" ? "Hacer Vendedor" : "Hacer Admin Dealer"}
+                      <Shield className="h-3.5 w-3.5" /> {m.role === "ADMIN" ? "Hacer Agente" : "Hacer Administrador"}
                     </button>
                     <button onClick={() => handleToggleActive(m.id, !m.isActive)}
                       className="w-full text-left px-3 py-2 text-[12.5px] text-red-600 hover:bg-red-50">
@@ -301,7 +301,7 @@ function EquipoTab({ workspaceId, members, canManage }: { workspaceId: string; m
 function InviteModal({ workspaceId, onClose, onInvited }: { workspaceId: string; onClose: () => void; onInvited: () => void }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"ADMIN_DEALER" | "VENDEDOR">("VENDEDOR");
+  const [role, setRole] = useState<"ADMIN" | "AGENTE">("AGENTE");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -342,9 +342,9 @@ function InviteModal({ workspaceId, onClose, onInvited }: { workspaceId: string;
         </div>
         <div>
           <FieldLabel>Rol</FieldLabel>
-          <select value={role} onChange={(e) => setRole(e.target.value as "ADMIN_DEALER" | "VENDEDOR")} className="w-full border border-gray-200 rounded-md px-3 py-2 text-[13px] outline-none focus:border-primary bg-white">
-            <option value="VENDEDOR">Vendedor</option>
-            <option value="ADMIN_DEALER">Admin Dealer</option>
+          <select value={role} onChange={(e) => setRole(e.target.value as "ADMIN" | "AGENTE")} className="w-full border border-gray-200 rounded-md px-3 py-2 text-[13px] outline-none focus:border-primary bg-white">
+            <option value="AGENTE">Agente</option>
+            <option value="ADMIN">Administrador</option>
           </select>
         </div>
         {error && <p className="text-[11.5px] text-red-500">{error}</p>}
@@ -373,7 +373,7 @@ function ContratosTab({ workspaceId, templates, rules }: { workspaceId: string; 
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-[13px] font-semibold text-gray-900">Plantillas de contrato</p>
-            <p className="text-[11.5px] text-muted-foreground">Placeholders: {"{{cliente.nombre}}"}, {"{{vehiculo.info}}"}, {"{{orden.numero}}"}, {"{{orden.precio}}"}, {"{{vendedor.nombre}}"}</p>
+            <p className="text-[11.5px] text-muted-foreground">Placeholders: {"{{cliente.nombre}}"}, {"{{propiedad.info}}"}, {"{{orden.numero}}"}, {"{{orden.precio}}"}, {"{{agente.nombre}}"}</p>
           </div>
           <button onClick={() => setTemplateModal("new")} className="flex items-center gap-1.5 text-[12.5px] font-medium text-white bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5"><Plus className="h-3.5 w-3.5" /> Nueva plantilla</button>
         </div>

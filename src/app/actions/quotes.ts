@@ -8,7 +8,7 @@ import { renderQuotePdf, type QuotePdfData } from "@/lib/pdf/quote-pdf";
 import { uploadQuotePdf } from "@/lib/storage/upload-quote-pdf";
 import type { Quote, SalesPaymentMethod } from "@prisma/client";
 
-async function generateAndAttachPdf(quote: Quote, workspaceName: string, createdByName: string, lead: { firstName: string; lastName: string | null; phone: string }, vehicle: { make: string; model: string; year: number; trim: string | null }) {
+async function generateAndAttachPdf(quote: Quote, workspaceName: string, createdByName: string, lead: { firstName: string; lastName: string | null; phone: string }, property: { title: string }) {
   try {
     const pdfData: QuotePdfData = {
       quoteNumber: quote.quoteNumber,
@@ -16,7 +16,7 @@ async function generateAndAttachPdf(quote: Quote, workspaceName: string, created
       createdByName,
       leadName: `${lead.firstName} ${lead.lastName ?? ""}`.trim(),
       leadPhone: lead.phone,
-      vehicle,
+      property,
       offeredPrice: quote.offeredPrice,
       currency: quote.currency,
       paymentMethod: quote.paymentMethod,
@@ -36,7 +36,7 @@ async function generateAndAttachPdf(quote: Quote, workspaceName: string, created
 
 type CreateQuoteInput = {
   leadId: string;
-  vehicleId: string;
+  propertyId: string;
   offeredPrice: number;
   currency: string;
   paymentMethod?: SalesPaymentMethod;
@@ -50,19 +50,19 @@ export async function createQuote(workspaceId: string, data: CreateQuoteInput) {
   const ctx = await getActiveWorkspace();
   if (!ctx) throw new Error("Sesión no válida.");
 
-  const [lead, vehicle] = await Promise.all([
+  const [lead, property] = await Promise.all([
     prisma.lead.findUnique({ where: { id: data.leadId }, select: { firstName: true, lastName: true, phone: true } }),
-    prisma.vehicle.findUnique({ where: { id: data.vehicleId }, select: { make: true, model: true, year: true, trim: true } }),
+    prisma.property.findUnique({ where: { id: data.propertyId }, select: { title: true } }),
   ]);
   if (!lead) throw new Error("Lead no encontrado.");
-  if (!vehicle) throw new Error("Vehículo no encontrado.");
+  if (!property) throw new Error("Propiedad no encontrada.");
 
   const quoteNumber = await getNextDocumentNumber(workspaceId, "COT");
 
   const quote = await prisma.quote.create({
     data: {
       workspaceId, quoteNumber,
-      leadId: data.leadId, vehicleId: data.vehicleId, createdById: ctx.user.id,
+      leadId: data.leadId, propertyId: data.propertyId, createdById: ctx.user.id,
       offeredPrice: data.offeredPrice, currency: data.currency,
       paymentMethod: data.paymentMethod ?? null,
       downPayment: data.downPayment ?? null, installments: data.installments ?? null,
@@ -72,7 +72,7 @@ export async function createQuote(workspaceId: string, data: CreateQuoteInput) {
     },
   });
 
-  await generateAndAttachPdf(quote, ctx.workspace.name, ctx.user.name, lead, vehicle);
+  await generateAndAttachPdf(quote, ctx.workspace.name, ctx.user.name, lead, property);
 
   revalidatePath("/cotizaciones");
   return { quoteId: quote.id };
@@ -125,7 +125,7 @@ export async function convertQuoteToSalesOrder(quoteId: string, dealId: string) 
     prisma.salesOrder.create({
       data: {
         workspaceId: quote.workspaceId, orderNumber,
-        leadId: quote.leadId, vehicleId: quote.vehicleId, quoteId: quote.id, dealId,
+        leadId: quote.leadId, propertyId: quote.propertyId, quoteId: quote.id, dealId,
         soldById: ctx.user.id,
         salePrice: quote.offeredPrice, currency: quote.currency,
         paymentMethod: quote.paymentMethod ?? "CONTADO",

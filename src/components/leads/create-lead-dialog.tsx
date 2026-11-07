@@ -1,5 +1,6 @@
 "use client";
 
+import { LISTING_TYPES, LISTING_TYPE_LABELS, PROPERTY_TYPES, PROPERTY_TYPE_LABELS } from "@/lib/properties/labels";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,8 +36,8 @@ export function CreateLeadDialog({ open, onOpenChange, users, onCreated }: Creat
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     firstName: "", lastName: "", phone: "", email: "",
-    source: "MANUAL", assignedTo: "", desiredMake: "", desiredModel: "",
-    budgetMin: "", budgetMax: "", notes: "",
+    source: "MANUAL", assignedTo: "", desiredPropertyType: "", desiredListingType: "", desiredCity: "", desiredSector: "", desiredBedrooms: "",
+    budgetMin: "", budgetMax: "", budgetCurrency: "USD", notes: "",
   });
 
   function set(field: string, value: string) {
@@ -53,7 +54,7 @@ export function CreateLeadDialog({ open, onOpenChange, users, onCreated }: Creat
     });
     const lead = await res.json();
     setLoading(false);
-    setForm({ firstName: "", lastName: "", phone: "", email: "", source: "MANUAL", assignedTo: "", desiredMake: "", desiredModel: "", budgetMin: "", budgetMax: "", notes: "" });
+    setForm({ firstName: "", lastName: "", phone: "", email: "", source: "MANUAL", assignedTo: "", desiredPropertyType: "", desiredListingType: "", desiredCity: "", desiredSector: "", desiredBedrooms: "", budgetMin: "", budgetMax: "", budgetCurrency: "USD", notes: "" });
     onCreated(lead);
   }
 
@@ -114,23 +115,51 @@ export function CreateLeadDialog({ open, onOpenChange, users, onCreated }: Creat
           {/* Interés */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Marca de interés</Label>
-              <Input value={form.desiredMake} onChange={(e) => set("desiredMake", e.target.value)} placeholder="Toyota" className="h-8" />
+              <Label>Tipo de propiedad</Label>
+              <select value={form.desiredPropertyType} onChange={(e) => set("desiredPropertyType", e.target.value)}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                <option value="">—</option>
+                {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{PROPERTY_TYPE_LABELS[t]}</option>)}
+              </select>
             </div>
             <div className="space-y-1.5">
-              <Label>Modelo</Label>
-              <Input value={form.desiredModel} onChange={(e) => set("desiredModel", e.target.value)} placeholder="RAV4" className="h-8" />
+              <Label>Busca para</Label>
+              <select value={form.desiredListingType} onChange={(e) => set("desiredListingType", e.target.value)}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                <option value="">—</option>
+                {LISTING_TYPES.map((t) => <option key={t} value={t}>{LISTING_TYPE_LABELS[t]}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ciudad</Label>
+              <Input value={form.desiredCity} onChange={(e) => set("desiredCity", e.target.value)} placeholder="Santo Domingo" className="h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Sector / zona</Label>
+              <Input value={form.desiredSector} onChange={(e) => set("desiredSector", e.target.value)} placeholder="Naco, Piantini…" className="h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Habitaciones (mínimo)</Label>
+              <Input type="number" min={0} value={form.desiredBedrooms} onChange={(e) => set("desiredBedrooms", e.target.value)} className="h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Moneda del presupuesto</Label>
+              <select value={form.budgetCurrency} onChange={(e) => set("budgetCurrency", e.target.value)}
+                className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                <option value="USD">US$</option>
+                <option value="DOP">RD$</option>
+              </select>
             </div>
           </div>
 
           {/* Presupuesto */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Presupuesto mín. (DOP)</Label>
+              <Label>Presupuesto mín. ({form.budgetCurrency === "USD" ? "US$" : "RD$"})</Label>
               <Input type="number" value={form.budgetMin} onChange={(e) => set("budgetMin", e.target.value)} placeholder="500,000" className="h-8" />
             </div>
             <div className="space-y-1.5">
-              <Label>Presupuesto máx. (DOP)</Label>
+              <Label>Presupuesto máx. ({form.budgetCurrency === "USD" ? "US$" : "RD$"})</Label>
               <Input type="number" value={form.budgetMax} onChange={(e) => set("budgetMax", e.target.value)} placeholder="1,000,000" className="h-8" />
             </div>
           </div>

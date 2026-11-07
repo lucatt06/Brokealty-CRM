@@ -17,7 +17,7 @@ export default async function LeadsPage() {
         deals: {
           include: {
             stage: { select: { id: true, name: true, color: true, order: true } },
-            vehicle: { select: { id: true, make: true, model: true, year: true } },
+            property: { select: { id: true, title: true } },
           },
           orderBy: { createdAt: "asc" },
         },

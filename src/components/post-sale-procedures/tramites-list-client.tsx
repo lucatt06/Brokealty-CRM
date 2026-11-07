@@ -21,8 +21,9 @@ type ProcedureRow = {
 };
 
 const TYPE_LABEL: Record<ProcedureType, string> = {
-  SEGUNDA_LLAVE: "Segunda llave", TRASPASO: "Traspaso", ENDOSO: "Endoso",
-  MATRICULA: "Matrícula", PLACA: "Placa", SEGURO: "Seguro", OTRO: "Otro",
+  LEGALIZACION_CONTRATO: "Legalización de contrato", CERTIFICACION_ESTATUS_JURIDICO: "Certificación de estatus jurídico",
+  IMPUESTO_TRANSFERENCIA: "Impuesto de transferencia", TRANSFERENCIA_TITULO: "Transferencia de título",
+  ENTREGA_LLAVES: "Entrega de llaves", OTRO: "Otro",
 };
 const STATUS_LABEL: Record<ProcedureStatus, string> = {
   PENDIENTE: "Pendiente", EN_PROCESO: "En proceso", COMPLETADO: "Completado", CANCELADO: "Cancelado",
@@ -59,7 +60,7 @@ export function TramitesListClient({ procedures, members }: { procedures: Proced
       <div className="max-w-6xl mx-auto space-y-5">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Control de Trámites</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Trámites post-venta: segunda llave, traspasos, endosos, matrículas, placas y seguros.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Trámites post-venta: legalización de contrato, impuesto de transferencia, transferencia de título y entrega de llaves.</p>
         </div>
 
         <div className="flex items-center gap-1.5">

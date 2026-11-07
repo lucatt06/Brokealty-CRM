@@ -1,40 +1,33 @@
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
-import { VehicleDetailClient } from "@/components/inventario/vehicle-detail-client";
+import { PropertyDetailClient } from "@/components/inventario/property-detail-client";
 
-export default async function VehicleDetailPage({ params }: { params: { id: string } }) {
+export default async function PropertyDetailPage({ params }: { params: { id: string } }) {
   const ctx = await getActiveWorkspace();
   if (!ctx) redirect("/login");
   const workspaceId = ctx.workspace.id;
 
-  const vehicle = await prisma.vehicle.findFirst({
+  const property = await prisma.property.findFirst({
     where: { id: params.id, workspaceId },
     include: {
       photos: { orderBy: { order: "asc" } },
       tags: true,
-      conduces: {
-        orderBy: { createdAt: "desc" },
-        include: { authorizedBy: { select: { id: true, name: true } }, lead: { select: { id: true, firstName: true, lastName: true } } },
-      },
+      capturedBy: { select: { id: true, name: true } },
+      priceHistory: { orderBy: { createdAt: "desc" }, take: 20 },
+      leads: { select: { id: true, firstName: true, lastName: true, stage: true }, take: 20 },
     },
   });
-  if (!vehicle) notFound();
+  if (!property) notFound();
 
   const serialized = {
-    ...vehicle,
-    arrivalDate: vehicle.arrivalDate?.toISOString() ?? null,
-    soldDate: vehicle.soldDate?.toISOString() ?? null,
-    createdAt: vehicle.createdAt.toISOString(),
-    updatedAt: vehicle.updatedAt.toISOString(),
-    conduces: vehicle.conduces.map((c) => ({
-      ...c,
-      expectedReturnAt: c.expectedReturnAt?.toISOString() ?? null,
-      actualReturnAt: c.actualReturnAt?.toISOString() ?? null,
-      createdAt: c.createdAt.toISOString(),
-      updatedAt: c.updatedAt.toISOString(),
-    })),
+    ...property,
+    listedAt: property.listedAt?.toISOString() ?? null,
+    soldDate: property.soldDate?.toISOString() ?? null,
+    createdAt: property.createdAt.toISOString(),
+    updatedAt: property.updatedAt.toISOString(),
+    priceHistory: property.priceHistory.map((h) => ({ ...h, createdAt: h.createdAt.toISOString() })),
   };
 
-  return <VehicleDetailClient vehicle={serialized} canManageConduces={ctx.role === "ADMIN_DEALER" || ctx.isSuperAdmin} />;
+  return <PropertyDetailClient property={serialized} />;
 }

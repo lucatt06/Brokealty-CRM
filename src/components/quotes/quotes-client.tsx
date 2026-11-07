@@ -10,13 +10,13 @@ import { createQuote, sendQuote, acceptQuote, rejectQuote, convertQuoteToSalesOr
 import type { SalesPaymentMethod } from "@prisma/client";
 
 type Lead = { id: string; firstName: string; lastName: string | null; phone: string };
-type Vehicle = { id: string; make: string; model: string; year: number; priceDOP: number | null };
+type Property = { id: string; title: string; priceDOP: number | null };
 type Quote = {
   id: string; quoteNumber: string; offeredPrice: number; currency: string;
   status: "BORRADOR" | "ENVIADA" | "ACEPTADA" | "RECHAZADA" | "EXPIRADA" | "CONVERTIDA";
   validUntil: string; documentUrl: string | null; createdAt: string;
   lead: { id: string; firstName: string; lastName: string | null };
-  vehicle: { id: string; make: string; model: string; year: number };
+  property: { id: string; title: string };
 };
 
 const STATUS_CFG: Record<Quote["status"], { label: string; cls: string }> = {
@@ -32,8 +32,8 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-DO", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export function QuotesClient({ quotes, leads, vehicles, dealsByLead, workspaceId }: {
-  quotes: Quote[]; leads: Lead[]; vehicles: Vehicle[]; dealsByLead: { id: string; leadId: string }[]; workspaceId: string;
+export function QuotesClient({ quotes, leads, properties, dealsByLead, workspaceId }: {
+  quotes: Quote[]; leads: Lead[]; properties: Property[]; dealsByLead: { id: string; leadId: string }[]; workspaceId: string;
 }) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -75,7 +75,7 @@ export function QuotesClient({ quotes, leads, vehicles, dealsByLead, workspaceId
                 <tr>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 px-4">Cotización</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Cliente</th>
-                  <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Vehículo</th>
+                  <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Propiedad</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Precio</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Válida hasta</th>
                   <th className="text-left text-[11px] font-semibold text-gray-500 py-2.5 pr-3">Estado</th>
@@ -87,7 +87,7 @@ export function QuotesClient({ quotes, leads, vehicles, dealsByLead, workspaceId
                   <tr key={q.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                     <td className="py-2.5 px-4 font-semibold text-gray-900">{q.quoteNumber}</td>
                     <td className="py-2.5 pr-3 text-gray-700">{q.lead.firstName} {q.lead.lastName ?? ""}</td>
-                    <td className="py-2.5 pr-3 text-gray-500">{q.vehicle.make} {q.vehicle.model} {q.vehicle.year}</td>
+                    <td className="py-2.5 pr-3 text-gray-500">{q.property.title}</td>
                     <td className="py-2.5 pr-3 font-semibold text-gray-800">{formatCurrency(q.offeredPrice, q.currency === "USD" ? "USD" : "DOP")}</td>
                     <td className="py-2.5 pr-3 text-gray-500">{fmtDate(q.validUntil)}</td>
                     <td className="py-2.5 pr-3">
@@ -119,19 +119,19 @@ export function QuotesClient({ quotes, leads, vehicles, dealsByLead, workspaceId
       </div>
 
       <AnimatePresence>
-        {modalOpen && <NewQuoteModal workspaceId={workspaceId} leads={leads} vehicles={vehicles} onClose={() => setModalOpen(false)} onCreated={() => { setModalOpen(false); router.refresh(); }} />}
+        {modalOpen && <NewQuoteModal workspaceId={workspaceId} leads={leads} properties={properties} onClose={() => setModalOpen(false)} onCreated={() => { setModalOpen(false); router.refresh(); }} />}
       </AnimatePresence>
     </div>
   );
 }
 
-function NewQuoteModal({ workspaceId, leads, vehicles, onClose, onCreated }: {
-  workspaceId: string; leads: Lead[]; vehicles: Vehicle[]; onClose: () => void; onCreated: () => void;
+function NewQuoteModal({ workspaceId, leads, properties, onClose, onCreated }: {
+  workspaceId: string; leads: Lead[]; properties: Property[]; onClose: () => void; onCreated: () => void;
 }) {
   const [leadId, setLeadId] = useState("");
   const [leadSearch, setLeadSearch] = useState("");
-  const [vehicleId, setVehicleId] = useState("");
-  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [propertySearch, setPropertySearch] = useState("");
   const [offeredPrice, setOfferedPrice] = useState("");
   const [currency, setCurrency] = useState("DOP");
   const [paymentMethod, setPaymentMethod] = useState<SalesPaymentMethod>("CONTADO");
@@ -141,15 +141,15 @@ function NewQuoteModal({ workspaceId, leads, vehicles, onClose, onCreated }: {
   const [saving, setSaving] = useState(false);
 
   const selectedLead = leads.find((l) => l.id === leadId);
-  const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+  const selectedProperty = properties.find((v) => v.id === propertyId);
   const filteredLeads = leads.filter((l) => `${l.firstName} ${l.lastName ?? ""} ${l.phone}`.toLowerCase().includes(leadSearch.toLowerCase())).slice(0, 8);
-  const filteredVehicles = vehicles.filter((v) => `${v.make} ${v.model} ${v.year}`.toLowerCase().includes(vehicleSearch.toLowerCase())).slice(0, 8);
+  const filteredProperties = properties.filter((v) => `${v.title}`.toLowerCase().includes(propertySearch.toLowerCase())).slice(0, 8);
 
   async function handleCreate() {
-    if (!leadId || !vehicleId || !offeredPrice || !validUntil) return;
+    if (!leadId || !propertyId || !offeredPrice || !validUntil) return;
     setSaving(true);
     await createQuote(workspaceId, {
-      leadId, vehicleId, offeredPrice: Number(offeredPrice), currency, paymentMethod, validUntil: new Date(validUntil).toISOString(),
+      leadId, propertyId, offeredPrice: Number(offeredPrice), currency, paymentMethod, validUntil: new Date(validUntil).toISOString(),
     });
     setSaving(false);
     onCreated();
@@ -187,21 +187,21 @@ function NewQuoteModal({ workspaceId, leads, vehicles, onClose, onCreated }: {
             )}
           </div>
           <div>
-            <label className="text-[11px] text-muted-foreground">Vehículo</label>
-            {selectedVehicle ? (
+            <label className="text-[11px] text-muted-foreground">Propiedad</label>
+            {selectedProperty ? (
               <div className="flex items-center gap-2 border border-border rounded-md px-2.5 py-1.5 mt-1">
                 <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <span className="text-sm flex-1">{selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year}</span>
-                <button onClick={() => { setVehicleId(""); }} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+                <span className="text-sm flex-1">{selectedProperty.title}</span>
+                <button onClick={() => { setPropertyId(""); }} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
               </div>
             ) : (
               <div className="relative">
-                <input value={vehicleSearch} onChange={(e) => setVehicleSearch(e.target.value)} placeholder="Buscar vehículo…" className="w-full mt-1 text-sm border border-border rounded-md px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary" />
-                {vehicleSearch && (
+                <input value={propertySearch} onChange={(e) => setPropertySearch(e.target.value)} placeholder="Buscar propiedad…" className="w-full mt-1 text-sm border border-border rounded-md px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-primary" />
+                {propertySearch && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-md shadow-lg z-10 max-h-[160px] overflow-y-auto">
-                    {filteredVehicles.map((v) => (
-                      <button key={v.id} onClick={() => { setVehicleId(v.id); if (v.priceDOP) setOfferedPrice(String(v.priceDOP)); setVehicleSearch(""); }} className="w-full text-left px-2.5 py-1.5 text-[12px] hover:bg-muted">
-                        {v.make} {v.model} {v.year} {v.priceDOP ? `· ${v.priceDOP.toLocaleString()} DOP` : ""}
+                    {filteredProperties.map((v) => (
+                      <button key={v.id} onClick={() => { setPropertyId(v.id); if (v.priceDOP) setOfferedPrice(String(v.priceDOP)); setPropertySearch(""); }} className="w-full text-left px-2.5 py-1.5 text-[12px] hover:bg-muted">
+                        {v.title} {v.priceDOP ? `· ${v.priceDOP.toLocaleString()} DOP` : ""}
                       </button>
                     ))}
                   </div>
@@ -230,7 +230,7 @@ function NewQuoteModal({ workspaceId, leads, vehicles, onClose, onCreated }: {
               <option value="CONTADO">Contado</option><option value="FINANCIAMIENTO_BANCARIO">Financiamiento bancario</option><option value="MIXTO">Mixto</option><option value="OTRO">Otro</option>
             </select>
           </div>
-          <Button onClick={handleCreate} disabled={saving || !leadId || !vehicleId || !offeredPrice} className="w-full h-9 text-sm">
+          <Button onClick={handleCreate} disabled={saving || !leadId || !propertyId || !offeredPrice} className="w-full h-9 text-sm">
             {saving ? "Creando…" : "Crear cotización"}
           </Button>
         </div>

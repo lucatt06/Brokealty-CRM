@@ -13,7 +13,7 @@ export async function updateDealStage(dealId: string, stageId: string) {
         workspaceId: true,
         leadId: true,
         stage: { select: { name: true } },
-        vehicle: { select: { make: true, model: true, year: true } },
+        property: { select: { title: true } },
       },
     }),
     prisma.pipelineStage.findUnique({
@@ -24,8 +24,8 @@ export async function updateDealStage(dealId: string, stageId: string) {
 
   const oldName = deal?.stage?.name ?? "Sin etapa";
   const newName = newStage?.name ?? "—";
-  const vehiclePart = deal?.vehicle
-    ? ` · ${deal.vehicle.make} ${deal.vehicle.model} ${deal.vehicle.year}`
+  const propertyPart = deal?.property
+    ? ` · ${deal.property.title}`
     : "";
 
   await prisma.$transaction([
@@ -36,7 +36,7 @@ export async function updateDealStage(dealId: string, stageId: string) {
             workspaceId: deal.workspaceId,
             leadId: deal.leadId,
             type: "STAGE_CHANGED",
-            description: `Etapa cambiada: ${oldName} → ${newName}${vehiclePart}`,
+            description: `Etapa cambiada: ${oldName} → ${newName}${propertyPart}`,
           },
         })]
       : []),
@@ -71,13 +71,13 @@ export async function createDeal(
   stageId: string,
   value: number | null,
   currency: string,
-  vehicleId?: string,
+  propertyId?: string,
 ) {
   await prisma.deal.create({
     data: {
       workspaceId, pipelineId, leadId, stageId,
       value, currency,
-      vehicleId: vehicleId || null,
+      propertyId: propertyId || null,
     },
   });
   revalidatePath("/negocios");
@@ -104,7 +104,7 @@ export async function updateDealExpectedClose(dealId: string, expectedCloseAt: s
 /**
  * "WON" ya no cierra la venta al instante (Fase 2B, Documento 7 sección 6.1) — crea
  * o reutiliza la Orden de Venta formal del deal y devuelve su id para que la UI
- * navegue ahí. La venta solo se completa de verdad (cascada real: vehículo vendido,
+ * navegue ahí. La venta solo se completa de verdad (cascada real: propiedad vendido,
  * comisión, etc.) cuando esa orden se completa — ver completeSalesOrder() en
  * src/app/actions/sales-orders.ts. "LOST" no cambia.
  */
@@ -116,10 +116,10 @@ export async function closeDeal(dealId: string, status: "WON" | "LOST", lostReas
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
     select: {
-      workspaceId: true, leadId: true, vehicle: { select: { make: true, model: true, year: true } },
+      workspaceId: true, leadId: true, property: { select: { title: true } },
     },
   });
-  const vehiclePart = deal?.vehicle ? ` · ${deal.vehicle.make} ${deal.vehicle.model} ${deal.vehicle.year}` : "";
+  const propertyPart = deal?.property ? ` · ${deal.property.title}` : "";
 
   await prisma.$transaction([
     prisma.deal.update({ where: { id: dealId }, data: { status, closedAt: new Date(), lostReason: lostReason ?? null } }),
@@ -127,7 +127,7 @@ export async function closeDeal(dealId: string, status: "WON" | "LOST", lostReas
       ? [prisma.activity.create({
           data: {
             workspaceId: deal.workspaceId, leadId: deal.leadId, type: "DEAL_LOST",
-            description: `Negocio perdido${vehiclePart}${lostReason ? ` — ${lostReason}` : ""}`,
+            description: `Negocio perdido${propertyPart}${lostReason ? ` — ${lostReason}` : ""}`,
           },
         })]
       : []),

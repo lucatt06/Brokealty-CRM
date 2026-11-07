@@ -23,7 +23,7 @@ export const aiGenerateMessageAction: ActionDefinition = {
 
     const lead = await prisma.lead.findUnique({
       where: { id: ctx.leadId },
-      include: { interestedVehicle: { select: { make: true, model: true, year: true, priceDOP: true } } },
+      include: { interestedProperty: { select: { title: true, priceDOP: true } } },
     });
     if (!lead) return "Contacto no encontrado.";
 
@@ -33,12 +33,12 @@ export const aiGenerateMessageAction: ActionDefinition = {
 
     const contextLines = [
       `Nombre del contacto: ${lead.firstName}${lead.lastName ? ` ${lead.lastName}` : ""}`,
-      lead.interestedVehicle
-        ? `Vehículo de interés: ${lead.interestedVehicle.make} ${lead.interestedVehicle.model} ${lead.interestedVehicle.year}${lead.interestedVehicle.priceDOP ? ` (RD$${lead.interestedVehicle.priceDOP})` : ""}`
+      lead.interestedProperty
+        ? `Propiedad de interés: ${lead.interestedProperty.title}${lead.interestedProperty.priceDOP ? ` (RD$${lead.interestedProperty.priceDOP})` : ""}`
         : null,
       lead.budgetMax ? `Presupuesto: hasta ${lead.budgetCurrency} ${lead.budgetMax}` : null,
       recentMessages.length
-        ? `Últimos mensajes (más reciente primero):\n${recentMessages.map((m) => `${m.direction === "INBOUND" ? "Cliente" : "Dealer"}: ${m.content}`).join("\n")}`
+        ? `Últimos mensajes (más reciente primero):\n${recentMessages.map((m) => `${m.direction === "INBOUND" ? "Cliente" : "Agente"}: ${m.content}`).join("\n")}`
         : null,
     ].filter(Boolean).join("\n");
 
@@ -47,7 +47,7 @@ export const aiGenerateMessageAction: ActionDefinition = {
       model: "claude-sonnet-5",
       max_tokens: 400,
       system:
-        "Eres un redactor de mensajes de WhatsApp para un dealer de vehículos. Escribe SOLO el texto final del " +
+        "Eres un redactor de mensajes de WhatsApp para una inmobiliaria. Escribe SOLO el texto final del " +
         "mensaje, sin explicaciones ni comillas, en español, con tono cercano y profesional.",
       messages: [{ role: "user", content: `Contexto del contacto:\n${contextLines}\n\nInstrucción: ${instruction}` }],
     });

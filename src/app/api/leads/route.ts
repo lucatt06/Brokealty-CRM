@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
 import { getDefaultPipelineEntryStage } from "@/lib/leads/default-deal";
+import { LISTING_TYPES, PROPERTY_TYPES } from "@/lib/properties/labels";
 
 async function getWorkspaceId() {
   const ctx = await getActiveWorkspace();
@@ -26,11 +27,14 @@ export async function POST(req: NextRequest) {
         source: body.source ?? "MANUAL",
         assignedTo: body.assignedTo ?? null,
         notes: body.notes ?? null,
-        desiredMake: body.desiredMake ?? null,
-        desiredModel: body.desiredModel ?? null,
+        desiredPropertyType: PROPERTY_TYPES.includes(body.desiredPropertyType) ? body.desiredPropertyType : null,
+        desiredListingType: LISTING_TYPES.includes(body.desiredListingType) ? body.desiredListingType : null,
+        desiredCity: body.desiredCity?.trim() || null,
+        desiredSector: body.desiredSector?.trim() || null,
+        desiredBedrooms: body.desiredBedrooms ? Number(body.desiredBedrooms) : null,
         budgetMin: body.budgetMin ? Number(body.budgetMin) : null,
         budgetMax: body.budgetMax ? Number(body.budgetMax) : null,
-        budgetCurrency: "DOP",
+        budgetCurrency: body.budgetCurrency === "USD" ? "USD" : "DOP",
         stage: "Nuevo",
         score: 0,
       },

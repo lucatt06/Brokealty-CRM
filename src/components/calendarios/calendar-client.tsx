@@ -20,7 +20,7 @@ import {
 } from "@/app/actions/appointments";
 
 // ── Types ─────────────────────────────────────────────────
-type ApptType = "VISITA_DEALER" | "LLAMADA" | "VIDEO_LLAMADA" | "TEST_DRIVE" | "ENTREGA" | "SEGUIMIENTO";
+type ApptType = "VISITA_PROPIEDAD" | "LLAMADA" | "VIDEO_LLAMADA" | "FIRMA_CONTRATO" | "ENTREGA_LLAVES" | "SEGUIMIENTO";
 type ApptStatus = "AGENDADA" | "CONFIRMADA" | "COMPLETADA" | "CANCELADA" | "NO_SHOW";
 type CalView = "day" | "week" | "month";
 
@@ -59,7 +59,7 @@ const DEFAULT_SETTINGS: CalSettings = {
   workStart: 8,
   workEnd: 19,
   defaultDuration: 60,
-  defaultType: "VISITA_DEALER",
+  defaultType: "VISITA_PROPIEDAD",
   defaultView: "week",
   autoConfirm: false,
   showWeekend: true,
@@ -69,11 +69,11 @@ const DEFAULT_SETTINGS: CalSettings = {
 const HOUR_HEIGHT = 56;
 
 const TYPE_META: Record<ApptType, { label: string; Icon: React.ElementType; color: string; bg: string; border: string; dot: string }> = {
-  VISITA_DEALER: { label: "Visita Dealer",  Icon: Car,           color: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-300",  dot: "bg-blue-500" },
+  VISITA_PROPIEDAD: { label: "Visita a Propiedad",  Icon: Car,           color: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-300",  dot: "bg-blue-500" },
   LLAMADA:       { label: "Llamada",         Icon: Phone,         color: "text-green-700",  bg: "bg-green-50",  border: "border-green-300", dot: "bg-green-500" },
   VIDEO_LLAMADA: { label: "Video Llamada",   Icon: Video,         color: "text-violet-700", bg: "bg-violet-50", border: "border-violet-300",dot: "bg-violet-500" },
-  TEST_DRIVE:    { label: "Test Drive",      Icon: Car,           color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-300",dot: "bg-orange-500" },
-  ENTREGA:       { label: "Entrega",         Icon: CheckSquare,   color: "text-teal-700",   bg: "bg-teal-50",   border: "border-teal-300",  dot: "bg-teal-500" },
+  FIRMA_CONTRATO:    { label: "Firma de contrato",      Icon: Car,           color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-300",dot: "bg-orange-500" },
+  ENTREGA_LLAVES:       { label: "Entrega",         Icon: CheckSquare,   color: "text-teal-700",   bg: "bg-teal-50",   border: "border-teal-300",  dot: "bg-teal-500" },
   SEGUIMIENTO:   { label: "Seguimiento",     Icon: MessageSquare, color: "text-gray-600",   bg: "bg-gray-100",  border: "border-gray-300",  dot: "bg-gray-400" },
 };
 
@@ -86,7 +86,7 @@ const STATUS_META: Record<ApptStatus, { label: string; cls: string; dot: string 
 };
 
 const VIEW_LABELS: Record<CalView, string> = { day: "Day view", week: "Week view", month: "Month view" };
-const APPT_TYPES: ApptType[] = ["VISITA_DEALER", "LLAMADA", "VIDEO_LLAMADA", "TEST_DRIVE", "ENTREGA", "SEGUIMIENTO"];
+const APPT_TYPES: ApptType[] = ["VISITA_PROPIEDAD", "LLAMADA", "VIDEO_LLAMADA", "FIRMA_CONTRATO", "ENTREGA_LLAVES", "SEGUIMIENTO"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const DAYS_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const DAYS_WEEK = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -660,7 +660,7 @@ function ApptModal({ initial, leads, users, workspaceId, settings, onClose }: {
                     <button className="w-full flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-[12px] hover:bg-gray-50 transition-colors">
                       <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                       <span className={selectedUser ? "text-gray-800" : "text-gray-400"}>
-                        {selectedUser?.name ?? "Seleccionar vendedor…"}
+                        {selectedUser?.name ?? "Seleccionar agente…"}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
                     </button>

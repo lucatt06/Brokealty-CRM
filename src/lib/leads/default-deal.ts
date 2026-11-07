@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 /**
  * Resuelve la primera etapa (menor `order`) del pipeline default del workspace —
  * la entrada natural para cualquier lead nuevo ("Nuevo" en el seed, pero se resuelve
- * por orden y no por nombre para no romperse si un dealer la renombra).
+ * por orden y no por nombre para no romperse si un inmobiliaria la renombra).
  */
 export async function getDefaultPipelineEntryStage(workspaceId: string) {
   const pipeline = await prisma.pipeline.findFirst({

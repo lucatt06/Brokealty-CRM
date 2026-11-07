@@ -12,7 +12,7 @@ export default async function SalesOrderDetailPage({ params }: { params: { id: s
     where: { id: params.id, workspaceId },
     include: {
       lead: { select: { id: true, firstName: true, lastName: true, phone: true } },
-      vehicle: { select: { id: true, make: true, model: true, year: true, vin: true, minimumPrice: true, priceDOP: true, priceUSD: true } },
+      property: { select: { id: true, title: true, minimumPrice: true, priceDOP: true, priceUSD: true } },
       quote: { select: { id: true, quoteNumber: true } },
       ddc: true,
       soldBy: { select: { id: true, name: true } },
@@ -59,7 +59,7 @@ export default async function SalesOrderDetailPage({ params }: { params: { id: s
       leadDdcs={serializedDdcs}
       templates={templates}
       users={members.map((m) => m.user)}
-      canManage={ctx.role === "ADMIN_DEALER" || ctx.isSuperAdmin}
+      canManage={ctx.role === "ADMIN" || ctx.isSuperAdmin}
       workspaceId={workspaceId}
     />
   );

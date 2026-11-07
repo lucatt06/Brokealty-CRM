@@ -43,16 +43,16 @@ export type Message = {
   isRead: boolean; status: string; sentAt: string;
 };
 export type Stage = { id: string; name: string; color: string; order: number };
-export type VehicleOption = { id: string; make: string; model: string; year: number; priceDOP: number | null };
+export type PropertyOption = { id: string; title: string; priceDOP: number | null };
 export type DealStage = { id: string; name: string; color: string };
-export type DealVehicle = { make: string; model: string; year: number };
+export type DealProperty = { title: string };
 export type Payment = {
   id: string; amount: number; currency: string; method: string;
   note: string | null; paidAt: string;
 };
 export type Deal = {
   id: string; status: string; value: number | null; currency: string;
-  stage: DealStage | null; vehicle: DealVehicle | null;
+  stage: DealStage | null; property: DealProperty | null;
   payments: Payment[];
 };
 export type Activity = {
@@ -181,8 +181,8 @@ function DealTrack({ deal, stages, index }: { deal: Deal; stages: Stage[]; index
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
 
-  const vehicleLabel = deal.vehicle
-    ? `${deal.vehicle.make} ${deal.vehicle.model} ${deal.vehicle.year}`
+  const propertyLabel = deal.property
+    ? `${deal.property.title}`
     : `Negocio #${index + 1}`;
   const currentIdx = stages.findIndex((s) => s.id === deal.stage?.id);
   const activeStage = stages[currentIdx];
@@ -204,10 +204,10 @@ function DealTrack({ deal, stages, index }: { deal: Deal; stages: Stage[]; index
 
   return (
     <div className="px-4 py-2.5 flex items-center gap-3">
-      {/* Vehicle label */}
-      <span className="text-[11px] text-muted-foreground truncate shrink-0 max-w-[90px]" title={vehicleLabel}>
+      {/* Property label */}
+      <span className="text-[11px] text-muted-foreground truncate shrink-0 max-w-[90px]" title={propertyLabel}>
         <Car className="inline h-3 w-3 mr-0.5 -mt-px" />
-        {vehicleLabel}
+        {propertyLabel}
       </span>
 
       {/* Track: all dots (stages + outcomes) equidistant */}
@@ -329,8 +329,8 @@ type TabKey = "unread" | "all" | "recents" | "starred";
 const NO_STAGE = "__sin_etapa__";
 
 // ══════════════════════════════════════════════════════
-export function ConversacionesClient({ conversations, stages, pipelineId, vehicles }: {
-  conversations: Conversation[]; stages: Stage[]; pipelineId: string | null; vehicles: VehicleOption[];
+export function ConversacionesClient({ conversations, stages, pipelineId, properties }: {
+  conversations: Conversation[]; stages: Stage[]; pipelineId: string | null; properties: PropertyOption[];
 }) {
   const router = useRouter();
   const { decrement: decrementUnreadBadge } = useUnreadConversationsBadge();
@@ -991,7 +991,7 @@ export function ConversacionesClient({ conversations, stages, pipelineId, vehicl
         {selected ? (
           <>
             <ChatHeader conversation={selected} starred={starred.has(selected.id)}
-              pipelineId={pipelineId} stages={stages} vehicles={vehicles}
+              pipelineId={pipelineId} stages={stages} properties={properties}
               onStar={() => {
                 setStarred((prev) => {
                   const s = new Set(prev);
@@ -1370,9 +1370,9 @@ export function ConversacionesClient({ conversations, stages, pipelineId, vehicl
 }
 
 // ── ChatHeader ──────────────────────────────────────────
-export function ChatHeader({ conversation, starred, onStar, pipelineId, stages, vehicles }: {
+export function ChatHeader({ conversation, starred, onStar, pipelineId, stages, properties }: {
   conversation: Conversation; starred: boolean; onStar: () => void;
-  pipelineId?: string | null; stages?: Stage[]; vehicles?: VehicleOption[];
+  pipelineId?: string | null; stages?: Stage[]; properties?: PropertyOption[];
 }) {
   const router = useRouter();
   const [dealModalOpen, setDealModalOpen] = useState(false);
@@ -1455,7 +1455,7 @@ export function ChatHeader({ conversation, starred, onStar, pipelineId, stages, 
           leadName={name}
           pipelineId={pipelineId}
           stages={stages}
-          vehicles={vehicles ?? []}
+          properties={properties ?? []}
           onClose={() => setDealModalOpen(false)}
           onCreated={() => { setDealModalOpen(false); router.refresh(); }}
         />
@@ -1465,26 +1465,26 @@ export function ChatHeader({ conversation, starred, onStar, pipelineId, stages, 
 }
 
 // ── Crear negocio desde el chat (lead ya fijo) ──────────
-function CreateDealModal({ workspaceId, leadId, leadName, pipelineId, stages, vehicles, onClose, onCreated }: {
-  workspaceId: string; leadId: string; leadName: string; pipelineId: string; stages: Stage[]; vehicles: VehicleOption[];
+function CreateDealModal({ workspaceId, leadId, leadName, pipelineId, stages, properties, onClose, onCreated }: {
+  workspaceId: string; leadId: string; leadName: string; pipelineId: string; stages: Stage[]; properties: PropertyOption[];
   onClose: () => void; onCreated: () => void;
 }) {
-  const [vehicleId, setVehicleId] = useState("");
-  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [propertySearch, setPropertySearch] = useState("");
   const [stageId, setStageId] = useState(stages[0]?.id ?? "");
   const [value, setValue] = useState("");
   const [currency, setCurrency] = useState("DOP");
   const [saving, setSaving] = useState(false);
 
-  const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
-  const filteredVehicles = vehicles.filter((v) =>
-    `${v.make} ${v.model} ${v.year}`.toLowerCase().includes(vehicleSearch.toLowerCase())
+  const selectedProperty = properties.find((v) => v.id === propertyId);
+  const filteredProperties = properties.filter((v) =>
+    `${v.title}`.toLowerCase().includes(propertySearch.toLowerCase())
   ).slice(0, 8);
 
   async function handleCreate() {
     if (!stageId) return;
     setSaving(true);
-    await createDeal(workspaceId, pipelineId, leadId, stageId, value ? parseFloat(value) : null, currency, vehicleId || undefined);
+    await createDeal(workspaceId, pipelineId, leadId, stageId, value ? parseFloat(value) : null, currency, propertyId || undefined);
     setSaving(false);
     onCreated();
   }
@@ -1504,34 +1504,34 @@ function CreateDealModal({ workspaceId, leadId, leadName, pipelineId, stages, ve
       <div className="p-5 space-y-3">
         <div>
           <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">
-            Vehículo <span className="font-normal normal-case">(opcional)</span>
+            Propiedad <span className="font-normal normal-case">(opcional)</span>
           </label>
-          {selectedVehicle ? (
+          {selectedProperty ? (
             <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
               <Car className="h-4 w-4 text-gray-300 shrink-0" />
-              <span className="text-sm flex-1">{selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year}</span>
-              <button onClick={() => { setVehicleId(""); setVehicleSearch(""); }} className="text-gray-400 hover:text-gray-600">
+              <span className="text-sm flex-1">{selectedProperty.title}</span>
+              <button onClick={() => { setPropertyId(""); setPropertySearch(""); }} className="text-gray-400 hover:text-gray-600">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           ) : (
             <div className="relative">
-              <input value={vehicleSearch} onChange={(e) => setVehicleSearch(e.target.value)}
-                placeholder="Buscar vehículo…"
+              <input value={propertySearch} onChange={(e) => setPropertySearch(e.target.value)}
+                placeholder="Buscar propiedad…"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
-              {vehicleSearch && (
+              {propertySearch && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-[180px] overflow-y-auto">
-                  {filteredVehicles.length === 0
+                  {filteredProperties.length === 0
                     ? <p className="text-xs text-gray-400 p-3">Sin resultados</p>
-                    : filteredVehicles.map((v) => (
+                    : filteredProperties.map((v) => (
                       <button key={v.id} onClick={() => {
-                        setVehicleId(v.id);
+                        setPropertyId(v.id);
                         if (v.priceDOP) setValue(String(v.priceDOP));
-                        setVehicleSearch("");
+                        setPropertySearch("");
                       }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
                         <Car className="h-3.5 w-3.5 text-gray-300 shrink-0" />
                         <div>
-                          <p className="font-medium text-[12px]">{v.make} {v.model} {v.year}</p>
+                          <p className="font-medium text-[12px]">{v.title}</p>
                           {v.priceDOP && <p className="text-[10px] text-gray-400">{v.priceDOP.toLocaleString()} DOP</p>}
                         </div>
                       </button>
@@ -1577,9 +1577,9 @@ const PRIORITY_BADGE: Record<string, string> = {
 const PRIORITY_LABEL: Record<string, string> = { BAJA: "Baja", MEDIA: "Media", ALTA: "Alta", URGENTE: "Urgente" };
 
 const APPT_TYPE_LABEL: Record<string, string> = {
-  VISITA_DEALER: "Visita al Dealer", LLAMADA: "Llamada",
-  VIDEO_LLAMADA: "Video Llamada",    TEST_DRIVE: "Test Drive",
-  ENTREGA: "Entrega",                SEGUIMIENTO: "Seguimiento",
+  VISITA_PROPIEDAD: "Visita a Propiedad", LLAMADA: "Llamada",
+  VIDEO_LLAMADA: "Video Llamada",    FIRMA_CONTRATO: "Firma de contrato",
+  ENTREGA_LLAVES: "Entrega",                SEGUIMIENTO: "Seguimiento",
 };
 const APPT_STATUS_COLOR: Record<string, string> = {
   AGENDADA:   "bg-blue-100 text-blue-700",
@@ -1743,7 +1743,7 @@ export function TareasTab({ tasks, workspaceId, leadId, showHeader = true }: { t
 // ── CitasTab ────────────────────────────────────────────
 export function CitasTab({ appointments, workspaceId, leadId, showHeader = true }: { appointments: Appointment[]; workspaceId: string; leadId: string; showHeader?: boolean }) {
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ title: "", type: "VISITA_DEALER", startAt: "", endAt: "", notes: "" });
+  const [form, setForm] = useState({ title: "", type: "VISITA_PROPIEDAD", startAt: "", endAt: "", notes: "" });
   const [pending, setPending] = useState<string | null>(null);
   const router = useRouter();
 
@@ -1754,7 +1754,7 @@ export function CitasTab({ appointments, workspaceId, leadId, showHeader = true 
     setPending("creating");
     await createAppointment(workspaceId, leadId, form.title, form.type, form.startAt, form.endAt, form.notes || undefined);
     router.refresh();
-    setForm({ title: "", type: "VISITA_DEALER", startAt: "", endAt: "", notes: "" });
+    setForm({ title: "", type: "VISITA_PROPIEDAD", startAt: "", endAt: "", notes: "" });
     setAdding(false); setPending(null);
   }
 
@@ -1914,7 +1914,7 @@ export function PagosTab({ deals, workspaceId }: { deals: Deal[]; workspaceId: s
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-medium truncate">
-                    {d.vehicle ? `${d.vehicle.make} ${d.vehicle.model} ${d.vehicle.year}` : "Sin vehículo"}
+                    {d.property ? `${d.property.title}` : "Sin propiedad"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">{d.stage?.name ?? "Sin etapa"}</p>
                 </div>

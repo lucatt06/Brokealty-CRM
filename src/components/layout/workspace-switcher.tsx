@@ -159,7 +159,7 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
         transition={{ type: "spring", stiffness: 380, damping: 32 }} onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-[15px] font-bold text-gray-900">Crear tenant</h2>
-          <p className="text-[11.5px] text-gray-400">Nuevo dealer, vacío y listo para configurar</p>
+          <p className="text-[11.5px] text-gray-400">Nueva inmobiliaria, vacía y lista para configurar</p>
         </div>
         <div className="p-5 space-y-2">
           <label className="text-[12px] font-semibold text-gray-700 block">Nombre del negocio</label>
@@ -205,7 +205,7 @@ function DuplicateTenantModal({ source, onClose, onDuplicated }: { source: Works
         transition={{ type: "spring", stiffness: 380, damping: 32 }} onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-[15px] font-bold text-gray-900">Duplicar &quot;{source.name}&quot;</h2>
-          <p className="text-[11.5px] text-gray-400">Copia pipeline, agentes IA, automatizaciones, knowledge base y tags — sin leads, vehículos ni conversaciones</p>
+          <p className="text-[11.5px] text-gray-400">Copia pipeline, agentes IA, automatizaciones, knowledge base y tags — sin leads, propiedades ni conversaciones</p>
         </div>
         <div className="p-5 space-y-2">
           <label className="text-[12px] font-semibold text-gray-700 block">Nombre del nuevo tenant</label>
@@ -351,7 +351,7 @@ function DeleteTenantModal({ tenant, onClose, onDeleted }: { tenant: WorkspaceLi
           </div>
           <div>
             <h2 className="text-[15px] font-bold text-gray-900">Eliminar &quot;{tenant.name}&quot;</h2>
-            <p className="text-[11.5px] text-gray-400">Esto borra TODO: leads, vehículos, conversaciones, agentes, todo. No se puede deshacer.</p>
+            <p className="text-[11.5px] text-gray-400">Esto borra TODO: leads, propiedades, conversaciones, agentes, todo. No se puede deshacer.</p>
           </div>
         </div>
         <div className="p-5 space-y-2">

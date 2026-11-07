@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
   // fromMe:true normalmente es el eco de un mensaje que YA enviamos nosotros mismos
   // (sendMessage/orchestrator) — ese caso se descarta más abajo por el dedup de externalId.
-  // Pero también puede ser un mensaje que el dealer escribió directo en WhatsApp desde el
+  // Pero también puede ser un mensaje que el inmobiliaria escribió directo en WhatsApp desde el
   // teléfono conectado, sin pasar por el CRM — ese sí hay que registrarlo (como OUTBOUND,
   // sin disparar respuesta del bot) para que la conversación no quede incompleta.
   const isFromMe = data.key.fromMe;

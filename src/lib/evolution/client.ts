@@ -81,7 +81,7 @@ export async function sendTextMessage(instanceName: string, remoteJid: string, t
   }) as Promise<{ key?: { id?: string; remoteJid?: string; fromMe?: boolean } }>;
 }
 
-/** Envía una imagen/video/documento por URL — usado para mandar fotos de vehículos del inventario. */
+/** Envía una imagen/video/documento por URL — usado para mandar fotos de propiedades del inventario. */
 export async function sendMediaMessage(
   instanceName: string,
   remoteJid: string,

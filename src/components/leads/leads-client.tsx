@@ -1,5 +1,7 @@
 "use client";
 
+import { PROPERTY_TYPE_LABELS, desiredSummary } from "@/lib/properties/labels";
+import type { ListingType, PropertyType } from "@prisma/client";
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,8 +37,8 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 const STAGE_COLORS: Record<string, string> = {
   "Nuevo": "bg-blue-100 text-blue-700", "Contactado": "bg-purple-100 text-purple-700",
-  "Calificado": "bg-amber-100 text-amber-700", "Cita Agendada": "bg-orange-100 text-orange-700",
-  "Visitó Dealer": "bg-pink-100 text-pink-700", "En Negociación": "bg-red-100 text-red-700",
+  "Calificado": "bg-amber-100 text-amber-700", "Visita Agendada": "bg-orange-100 text-orange-700",
+  "Visitó Propiedad": "bg-pink-100 text-pink-700", "En Negociación": "bg-red-100 text-red-700",
   "Cerrado": "bg-green-100 text-green-700",
 };
 const SCORE_RANGES = [
@@ -45,7 +47,7 @@ const SCORE_RANGES = [
   { label: "Medio (50-79)", min: 50, max: 79 },
   { label: "Bajo (0-49)", min: 0, max: 49 },
 ];
-const STAGES = ["Todos", "Nuevo", "Contactado", "Calificado", "Cita Agendada", "Visitó Dealer", "En Negociación", "Cerrado"];
+const STAGES = ["Todos", "Nuevo", "Contactado", "Calificado", "Visita Agendada", "Visitó Propiedad", "En Negociación", "Cerrado"];
 
 function scoreColor(s: number) {
   if (s >= 80) return "text-green-600";
@@ -54,17 +56,18 @@ function scoreColor(s: number) {
 }
 
 type DealStage = { id: string; name: string; color: string; order: number };
-type DealVehicle = { id: string; make: string; model: string; year: number };
+type DealProperty = { id: string; title: string };
 type Deal = {
   id: string; status: string; value: number | null; currency: string;
-  stage: DealStage | null; vehicle: DealVehicle | null;
+  stage: DealStage | null; property: DealProperty | null;
   createdAt: string; updatedAt: string; closedAt: string | null;
 };
 type Lead = {
   id: string; firstName: string; lastName: string | null;
   phone: string; email: string | null; source: string; stage: string | null;
   score: number; createdAt: string; assignedUser: { id: string; name: string } | null;
-  desiredMake: string | null; desiredModel: string | null;
+  desiredPropertyType: PropertyType | null; desiredListingType: ListingType | null;
+  desiredCity: string | null; desiredSector: string | null; desiredBedrooms: number | null;
   budgetMin: number | null; budgetMax: number | null;
   deals: Deal[];
 };
@@ -88,9 +91,9 @@ export function LeadsClient({ leads: initialLeads, users, workspaceId }: LeadsCl
   const [dialogOpen, setDialogOpen] = useState(false);
   const [, startTransition] = useTransition();
 
-  // Marcas únicas de los leads
+  // Tipos de propiedad que buscan los leads
   const makes = useMemo(() => {
-    const set = new Set(leads.map((l) => l.desiredMake).filter(Boolean) as string[]);
+    const set = new Set(leads.map((l) => l.desiredPropertyType).filter(Boolean).map((t) => PROPERTY_TYPE_LABELS[t as PropertyType]));
     return Array.from(set).sort();
   }, [leads]);
 
@@ -105,7 +108,7 @@ export function LeadsClient({ leads: initialLeads, users, workspaceId }: LeadsCl
         l.email?.toLowerCase().includes(search.toLowerCase());
       const matchStage = stageFilter === "Todos" || l.stage === stageFilter;
       const matchSource = sourceFilter === "Todos" || l.source === sourceFilter;
-      const matchInterest = interestFilter === "Todos" || l.desiredMake === interestFilter;
+      const matchInterest = interestFilter === "Todos" || (l.desiredPropertyType ? PROPERTY_TYPE_LABELS[l.desiredPropertyType] : null) === interestFilter;
       const matchScore = l.score >= scoreRange.min && l.score <= scoreRange.max;
       const matchAssigned = assignedFilter === "Todos" ||
         (assignedFilter === "Sin asignar" ? !l.assignedUser : l.assignedUser?.id === assignedFilter);
@@ -297,8 +300,8 @@ export function LeadsClient({ leads: initialLeads, users, workspaceId }: LeadsCl
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {lead.desiredMake
-                      ? <span className="text-xs text-foreground">{lead.desiredMake} {lead.desiredModel}</span>
+                    {desiredSummary(lead)
+                      ? <span className="text-xs text-foreground">{desiredSummary(lead)}</span>
                       : <span className="text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3">

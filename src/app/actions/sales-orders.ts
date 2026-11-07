@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
-import { hasOpenTestDriveConduce, buildEntregaClienteConduce } from "@/lib/conduces/queries";
 import { evaluateAuthorizationTriggers } from "@/app/actions/sales-authorizations";
 import { getNextDocumentNumber } from "@/lib/sequences/document-number";
 import { logAuditEvent } from "@/lib/audit";
@@ -14,19 +13,18 @@ import type { CommissionRule, ProcedureType, SalesPaymentMethod } from "@prisma/
 function computeCommissionAmount(
   rule: CommissionRule,
   order: { value: number; currency: string },
-  vehicle: { costDOP: number | null } | null
+  property: { commissionPct: number | null } | null
 ): number {
   if (rule.calcType === "FIXED_AMOUNT") return rule.fixedAmount ?? 0;
-  if (rule.calcType === "PERCENT_OF_MARGIN" && vehicle?.costDOP != null && order.currency === "DOP") {
-    return Math.max(0, order.value - vehicle.costDOP) * ((rule.percent ?? 0) / 100);
-  }
-  return order.value * ((rule.percent ?? 0) / 100);
+  // Si la propiedad trae un % pactado con el propietario, manda sobre el % genérico de la regla.
+  const percent = property?.commissionPct ?? rule.percent ?? 0;
+  return order.value * (percent / 100);
 }
 
 async function requireAdmin() {
   const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN_DEALER" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Admin Dealer puede hacer esto.");
+  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
+    throw new Error("Solo un Administrador puede hacer esto.");
   }
   return ctx;
 }
@@ -45,10 +43,10 @@ export async function createSalesOrderFromDeal(dealId: string): Promise<{ salesO
 
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { workspaceId: true, leadId: true, vehicleId: true, assignedToId: true, value: true, currency: true },
+    select: { workspaceId: true, leadId: true, propertyId: true, assignedToId: true, value: true, currency: true },
   });
   if (!deal) throw new Error("Negocio no encontrado.");
-  if (!deal.vehicleId) throw new Error("Este negocio no tiene un vehículo vinculado — no se puede iniciar una venta formal.");
+  if (!deal.propertyId) throw new Error("Este negocio no tiene una propiedad vinculado — no se puede iniciar una venta formal.");
   if (!deal.value) throw new Error("Este negocio no tiene un valor definido — asígnale un precio antes de marcarlo ganado.");
 
   const orderNumber = await getNextDocumentNumber(deal.workspaceId, "OV");
@@ -58,7 +56,7 @@ export async function createSalesOrderFromDeal(dealId: string): Promise<{ salesO
       workspaceId: deal.workspaceId,
       orderNumber,
       leadId: deal.leadId,
-      vehicleId: deal.vehicleId,
+      propertyId: deal.propertyId,
       dealId,
       soldById: deal.assignedToId ?? ctx.user.id,
       salePrice: deal.value,
@@ -70,7 +68,7 @@ export async function createSalesOrderFromDeal(dealId: string): Promise<{ salesO
 
   await prisma.activity.create({
     data: {
-      workspaceId: deal.workspaceId, leadId: deal.leadId, vehicleId: deal.vehicleId,
+      workspaceId: deal.workspaceId, leadId: deal.leadId, propertyId: deal.propertyId,
       type: "SALES_ORDER_CREATED", description: `Orden de venta ${orderNumber} creada`,
       metadata: { salesOrderId: salesOrder.id },
     },
@@ -115,7 +113,7 @@ export async function completeSalesOrder(salesOrderId: string) {
   const order = await prisma.salesOrder.findUnique({
     where: { id: salesOrderId },
     include: {
-      vehicle: { select: { id: true, make: true, model: true, year: true, status: true, costDOP: true, minimumPrice: true, priceDOP: true, priceUSD: true } },
+      property: { select: { id: true, title: true, status: true, listingType: true, minimumPrice: true, priceDOP: true, priceUSD: true, commissionPct: true } },
       ddc: { select: { status: true, expiresAt: true } },
       deal: { select: { id: true, assignedToId: true } },
     },
@@ -128,16 +126,11 @@ export async function completeSalesOrder(salesOrderId: string) {
   const ddcOk = order.ddc?.status === "APROBADO" && (!order.ddc.expiresAt || order.ddc.expiresAt > new Date());
   if (!ddcOk) throw new Error("Esta venta requiere una Debida Diligencia del Cliente aprobada y vigente antes de completarse.");
 
-  // 2. Vehículo sigue disponible (no vendido por otra orden en paralelo)
-  if (order.vehicle.status !== "DISPONIBLE") throw new Error("El vehículo ya no está disponible.");
+  // 2. Propiedad sigue disponible (no vendido por otra orden en paralelo)
+  if (order.property.status !== "DISPONIBLE") throw new Error("La propiedad ya no está disponible.");
 
-  // 3. Sin prueba de manejo abierta (regla dura de 2A, reusada)
-  if (await hasOpenTestDriveConduce(order.vehicleId)) {
-    throw new Error("Este vehículo tiene una prueba de manejo en curso — no se puede completar la venta hasta que regrese.");
-  }
-
-  // 4. Autorización — se evalúa fresca contra las reglas activas del workspace
-  const triggers = await evaluateAuthorizationTriggers(order.workspaceId, order, order.vehicle);
+  // 3. Autorización — se evalúa fresca contra las reglas activas del workspace
+  const triggers = await evaluateAuthorizationTriggers(order.workspaceId, order, order.property);
   if (triggers.length) {
     const approved = await prisma.salesAuthorization.findFirst({ where: { salesOrderId, status: "APROBADA" } });
     if (!approved) {
@@ -155,16 +148,16 @@ export async function completeSalesOrder(salesOrderId: string) {
           data: { workspaceId: order.workspaceId, leadId: order.leadId, type: "AUTHORIZATION_REQUESTED", description: `Autorización requerida: ${triggers.map((t) => t.trigger).join(", ")}`, metadata: { salesOrderId } },
         });
       }
-      throw new Error("Esta venta requiere autorización de un Admin Dealer antes de completarse.");
+      throw new Error("Esta venta requiere autorización de un Administrador antes de completarse.");
     }
   }
 
   // Todo validado — ejecutar la cascada.
-  const vehiclePart = `${order.vehicle.make} ${order.vehicle.model} ${order.vehicle.year}`;
+  const propertyPart = order.property.title;
 
   const [otherInterestedLeads, commissionRule, workspace] = await Promise.all([
     prisma.lead.findMany({
-      where: { workspaceId: order.workspaceId, interestedVehicleId: order.vehicleId, id: { not: order.leadId } },
+      where: { workspaceId: order.workspaceId, interestedPropertyId: order.propertyId, id: { not: order.leadId } },
       select: { id: true, assignedTo: true },
     }),
     order.deal.assignedToId
@@ -173,21 +166,20 @@ export async function completeSalesOrder(salesOrderId: string) {
     prisma.workspace.findUnique({ where: { id: order.workspaceId }, select: { requiredPostSaleProcedures: true } }),
   ]);
   const commissionAmount = commissionRule
-    ? computeCommissionAmount(commissionRule, { value: order.salePrice, currency: order.currency }, order.vehicle)
+    ? computeCommissionAmount(commissionRule, { value: order.salePrice, currency: order.currency }, order.property)
     : null;
 
   await prisma.$transaction([
     prisma.salesOrder.update({ where: { id: salesOrderId }, data: { status: "COMPLETADA", completedAt: new Date(), saleDate: new Date() } }),
     prisma.deal.update({ where: { id: order.dealId }, data: { status: "WON", closedAt: new Date() } }),
-    prisma.vehicle.update({
-      where: { id: order.vehicleId },
-      data: { status: "VENDIDO", soldDate: new Date(), soldToLeadId: order.leadId, soldByUserId: order.soldById },
+    prisma.property.update({
+      where: { id: order.propertyId },
+      data: { status: order.property.listingType === "ALQUILER" ? "ALQUILADO" : "VENDIDO", soldDate: new Date(), soldToLeadId: order.leadId, soldByUserId: order.soldById },
     }),
-    buildEntregaClienteConduce({ workspaceId: order.workspaceId, vehicleId: order.vehicleId, authorizedById: ctx.user.id, leadId: order.leadId }),
     prisma.activity.create({
       data: {
-        workspaceId: order.workspaceId, leadId: order.leadId, vehicleId: order.vehicleId,
-        type: "SALES_ORDER_COMPLETED", description: `Venta completada — orden ${order.orderNumber} · ${vehiclePart}`,
+        workspaceId: order.workspaceId, leadId: order.leadId, propertyId: order.propertyId,
+        type: "SALES_ORDER_COMPLETED", description: `Venta completada — orden ${order.orderNumber} · ${propertyPart}`,
         metadata: { salesOrderId },
       },
     }),
@@ -200,14 +192,14 @@ export async function completeSalesOrder(salesOrderId: string) {
         })]
       : []),
     ...(workspace?.requiredPostSaleProcedures ?? []).map((type: ProcedureType) =>
-      prisma.postSaleProcedure.create({ data: { workspaceId: order.workspaceId, salesOrderId, vehicleId: order.vehicleId, type } })
+      prisma.postSaleProcedure.create({ data: { workspaceId: order.workspaceId, salesOrderId, propertyId: order.propertyId, type } })
     ),
     ...otherInterestedLeads.flatMap((lead) => [
       prisma.task.create({
-        data: { workspaceId: order.workspaceId, leadId: lead.id, assignedTo: lead.assignedTo, title: `Ofrecer alternativa — ${vehiclePart} ya se vendió`, priority: "ALTA" },
+        data: { workspaceId: order.workspaceId, leadId: lead.id, assignedTo: lead.assignedTo, title: `Ofrecer alternativa — ${propertyPart} ya se vendió`, priority: "ALTA" },
       }),
       prisma.activity.create({
-        data: { workspaceId: order.workspaceId, leadId: lead.id, type: "LEAD_UPDATED", description: `El vehículo de interés (${vehiclePart}) fue vendido a otro cliente — se creó tarea de seguimiento` },
+        data: { workspaceId: order.workspaceId, leadId: lead.id, type: "LEAD_UPDATED", description: `La propiedad de interés (${propertyPart}) fue vendida a otro cliente — se creó tarea de seguimiento` },
       }),
     ]),
   ]);
@@ -215,16 +207,16 @@ export async function completeSalesOrder(salesOrderId: string) {
   await logAuditEvent({
     actorUserId: ctx.user.id, actorName: ctx.user.name,
     workspaceId: order.workspaceId, workspaceName: ctx.workspace.name,
-    action: "SALES_ORDER_COMPLETED", details: { salesOrderId, orderNumber: order.orderNumber, vehicleId: order.vehicleId },
+    action: "SALES_ORDER_COMPLETED", details: { salesOrderId, orderNumber: order.orderNumber, propertyId: order.propertyId },
   });
 
-  await fireAutomationTrigger(order.workspaceId, "VEHICLE_SOLD", { leadId: order.leadId });
+  await fireAutomationTrigger(order.workspaceId, "PROPERTY_SOLD", { leadId: order.leadId });
 
   revalidatePath("/negocios");
   revalidatePath("/ordenes-venta");
   revalidatePath(`/ordenes-venta/${salesOrderId}`);
   revalidatePath("/inventario");
-  revalidatePath(`/inventario/${order.vehicleId}`);
+  revalidatePath(`/inventario/${order.propertyId}`);
   revalidatePath("/leads");
   revalidatePath("/comisiones");
 }

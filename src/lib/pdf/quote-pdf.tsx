@@ -6,7 +6,7 @@ export type QuotePdfData = {
   createdByName: string;
   leadName: string;
   leadPhone: string;
-  vehicle: { make: string; model: string; year: number; trim: string | null };
+  property: { title: string };
   offeredPrice: number;
   currency: string;
   paymentMethod: string | null;
@@ -73,10 +73,10 @@ function QuoteDocument({ data }: { data: QuotePdfData }) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vehículo</Text>
+          <Text style={styles.sectionTitle}>Propiedad</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Unidad</Text>
-            <Text style={styles.value}>{data.vehicle.make} {data.vehicle.model} {data.vehicle.year}{data.vehicle.trim ? ` ${data.vehicle.trim}` : ""}</Text>
+            <Text style={styles.value}>{data.property.title}</Text>
           </View>
         </View>
 

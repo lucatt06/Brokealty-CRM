@@ -2,7 +2,7 @@
 
 import { putFile } from "@/lib/storage/blob";
 
-const PHOTOS_BUCKET = "vehicle-photos";
+const PHOTOS_BUCKET = "property-photos";
 const MAX_PHOTO_SIZE = 8 * 1024 * 1024; // 8MB
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
 
@@ -27,7 +27,7 @@ const ALLOWED_OPERATION_DOC_TYPES = ["image/jpeg", "image/jpg", "image/png", "im
 type Result = { url: string; error?: undefined } | { url?: undefined; error: string };
 
 // ── Subida de archivo directo desde el dispositivo ────────
-export async function uploadVehiclePhotoFile(formData: FormData): Promise<Result> {
+export async function uploadPropertyPhotoFile(formData: FormData): Promise<Result> {
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún archivo." };
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { error: "Formato no soportado. Usa JPG, PNG, WEBP o GIF." };

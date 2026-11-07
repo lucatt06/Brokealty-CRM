@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { InventarioClient } from "@/components/inventario/inventario-client";
 
-function computeDaysInLot(arrivalDate: Date | null, createdAt: Date, soldDate: Date | null) {
-  const start = arrivalDate ?? createdAt;
+function computeDaysListed(listedAt: Date | null, createdAt: Date, soldDate: Date | null) {
+  const start = listedAt ?? createdAt;
   const end = soldDate ?? new Date();
   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86_400_000));
 }
@@ -14,8 +14,8 @@ export default async function InventarioPage() {
   if (!ctx) redirect("/login");
   const workspaceId = ctx.workspace.id;
 
-  const [vehicles, tags] = await Promise.all([
-    prisma.vehicle.findMany({
+  const [properties, tags, members] = await Promise.all([
+    prisma.property.findMany({
       where: { workspaceId },
       include: {
         photos: { orderBy: { order: "asc" } },
@@ -29,12 +29,16 @@ export default async function InventarioPage() {
       where: { workspaceId },
       orderBy: { name: "asc" },
     }),
+    prisma.workspaceUser.findMany({
+      where: { workspaceId, isActive: true },
+      select: { user: { select: { id: true, name: true } } },
+    }).then((rows) => rows.map((r) => r.user)),
   ]);
 
-  const serialized = vehicles.map((v) => ({
+  const serialized = properties.map((v) => ({
     ...v,
-    daysInLot: computeDaysInLot(v.arrivalDate, v.createdAt, v.soldDate),
-    arrivalDate: v.arrivalDate?.toISOString() ?? null,
+    daysListed: computeDaysListed(v.listedAt, v.createdAt, v.soldDate),
+    listedAt: v.listedAt?.toISOString() ?? null,
     soldDate: v.soldDate?.toISOString() ?? null,
     createdAt: v.createdAt.toISOString(),
     updatedAt: v.updatedAt.toISOString(),
@@ -45,9 +49,10 @@ export default async function InventarioPage() {
 
   return (
     <InventarioClient
-      vehicles={serialized}
+      properties={serialized}
       tags={tags}
       workspaceId={workspaceId}
+      members={members}
     />
   );
 }

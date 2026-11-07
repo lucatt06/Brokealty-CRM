@@ -11,10 +11,10 @@ import {
 } from "@/app/actions/commissions";
 
 type CommissionStatus = "PENDING" | "APPROVED" | "REJECTED" | "PAID";
-type CalcType = "PERCENT_OF_VALUE" | "PERCENT_OF_MARGIN" | "FIXED_AMOUNT";
+type CalcType = "PERCENT_OF_VALUE" | "FIXED_AMOUNT";
 
 type Commission = {
-  id: string; dealId: string; leadName: string; vehicleLabel: string | null;
+  id: string; dealId: string; leadName: string; propertyLabel: string | null;
   userId: string; userName: string; ruleName: string | null;
   baseAmount: number; amount: number; currency: string; status: CommissionStatus;
   approvedByName: string | null; approvedAt: string | null; rejectionReason: string | null;
@@ -35,7 +35,6 @@ const STATUS_CFG: Record<CommissionStatus, { label: string; bg: string; text: st
 
 const CALC_TYPE_LABEL: Record<CalcType, string> = {
   PERCENT_OF_VALUE: "% del valor de venta",
-  PERCENT_OF_MARGIN: "% del margen (venta − costo)",
   FIXED_AMOUNT: "Monto fijo",
 };
 
@@ -126,7 +125,7 @@ export function ComisionesClient({
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    {isAdmin && <th className="text-left font-medium px-3 py-2">Vendedor</th>}
+                    {isAdmin && <th className="text-left font-medium px-3 py-2">Agente</th>}
                     <th className="text-left font-medium px-3 py-2">Negocio</th>
                     <th className="text-left font-medium px-3 py-2">Regla</th>
                     <th className="text-right font-medium px-3 py-2">Monto</th>
@@ -141,7 +140,7 @@ export function ComisionesClient({
                       {isAdmin && <td className="px-3 py-2.5">{c.userName}</td>}
                       <td className="px-3 py-2.5">
                         <div className="font-medium">{c.leadName}</div>
-                        {c.vehicleLabel && <div className="text-xs text-muted-foreground">{c.vehicleLabel}</div>}
+                        {c.propertyLabel && <div className="text-xs text-muted-foreground">{c.propertyLabel}</div>}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground">{c.ruleName ?? "—"}</td>
                       <td className="px-3 py-2.5 text-right font-semibold">{fmt(c.amount, c.currency)}</td>

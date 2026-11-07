@@ -23,7 +23,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   MESSAGE_RECEIVED: "Llega un mensaje",
   APPOINTMENT_CREATED: "Se agenda una cita",
   APPOINTMENT_REMINDER: "Recordatorio de cita",
-  VEHICLE_SOLD: "Se vende un vehículo",
+  PROPERTY_SOLD: "Se vende una propiedad",
   TASK_DUE: "Una tarea vence",
   INACTIVITY: "Un lead lleva tiempo sin responder",
   CUSTOM: "Condición personalizada",
@@ -34,7 +34,7 @@ const ACTION_META: Record<string, { label: string; Icon: React.ElementType }> = 
   CREATE_TASK: { label: "Crear tarea", Icon: CheckSquare },
   ADD_TAG: { label: "Agregar etiqueta", Icon: Tag },
   CHANGE_STAGE: { label: "Cambiar etapa", Icon: ArrowRightCircle },
-  ASSIGN_USER: { label: "Asignar a vendedor", Icon: UserPlus },
+  ASSIGN_USER: { label: "Asignar a agente", Icon: UserPlus },
   WAIT: { label: "Esperar", Icon: Clock },
   NOTIFY_TEAM: { label: "Notificar al equipo", Icon: Bell },
 };

@@ -6,8 +6,8 @@ import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 
 async function requireAdmin() {
   const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN_DEALER" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Admin Dealer puede hacer esto.");
+  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
+    throw new Error("Solo un Administrador puede hacer esto.");
   }
   return ctx;
 }
@@ -15,7 +15,7 @@ async function requireAdmin() {
 // ── Reglas de comisión ──────────────────────────────────
 export async function createCommissionRule(
   workspaceId: string,
-  data: { name: string; calcType: "PERCENT_OF_VALUE" | "PERCENT_OF_MARGIN" | "FIXED_AMOUNT"; percent?: number | null; fixedAmount?: number | null }
+  data: { name: string; calcType: "PERCENT_OF_VALUE" | "FIXED_AMOUNT"; percent?: number | null; fixedAmount?: number | null }
 ) {
   await requireAdmin();
   await prisma.commissionRule.create({
@@ -32,7 +32,7 @@ export async function createCommissionRule(
 
 export async function updateCommissionRule(
   id: string,
-  data: { name: string; calcType: "PERCENT_OF_VALUE" | "PERCENT_OF_MARGIN" | "FIXED_AMOUNT"; percent?: number | null; fixedAmount?: number | null }
+  data: { name: string; calcType: "PERCENT_OF_VALUE" | "FIXED_AMOUNT"; percent?: number | null; fixedAmount?: number | null }
 ) {
   await requireAdmin();
   await prisma.commissionRule.update({

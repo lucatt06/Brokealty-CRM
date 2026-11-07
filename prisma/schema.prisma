@@ -1,4 +1,4 @@
-// Autónomo — CRM para Dealers
+// Brokealty CRM — CRM Inmobiliario
 // Stack: Supabase (PostgreSQL) + Prisma ORM
 // Arquitectura: Multi-tenant con workspaceId en cada tabla sensible
 
@@ -7,8 +7,8 @@ generator client {
 }
 
 datasource db {
-  provider          = "postgresql"
-  url               = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────
@@ -40,7 +40,7 @@ model Workspace {
   // Relations
   users              WorkspaceUser[]
   leads              Lead[]
-  vehicles           Vehicle[]
+  properties         Property[]
   conversations      Conversation[]
   pipelines          Pipeline[]
   tasks              Task[]
@@ -58,7 +58,6 @@ model Workspace {
   scheduledTasks     ScheduledTask[]
   commissionRules    CommissionRule[]
   commissions        Commission[]
-  conduces           Conduce[]
   websiteConfig      WebsiteConfig?
   dueDiligences      CustomerDueDiligence[]
   quotes             Quote[]
@@ -106,8 +105,8 @@ model User {
   notifications           Notification[]
   commissionsEarned       Commission[]           @relation("CommissionEarner")
   commissionsApproved     Commission[]           @relation("CommissionApprover")
-  authorizedConduces      Conduce[]              @relation("ConduceAuthorizer")
-  vehiclesSold            Vehicle[]              @relation("VehicleSoldBy")
+  propertiesSold          Property[]             @relation("PropertySoldBy")
+  propertiesCaptured      Property[]             @relation("PropertyCapturedBy")
   dueDiligencesReviewed   CustomerDueDiligence[] @relation("DdcReviewer")
   quotesCreated           Quote[]
   salesOrdersSold         SalesOrder[]           @relation("SalesOrderSeller")
@@ -126,7 +125,7 @@ model WorkspaceUser {
   id          String   @id @default(cuid())
   workspaceId String
   userId      String
-  role        Role     @default(VENDEDOR)
+  role        Role     @default(AGENTE)
   isActive    Boolean  @default(true)
   joinedAt    DateTime @default(now())
 
@@ -139,136 +138,147 @@ model WorkspaceUser {
 
 enum Role {
   SUPER_ADMIN // Lucas — acceso cross-workspace
-  ADMIN_DEALER // Acceso completo al workspace
-  VENDEDOR // Solo ve sus propios leads
+  ADMIN // Acceso completo al workspace
+  AGENTE // Solo ve sus propios leads
 }
 
 // ─────────────────────────────────────────────
 // VEHÍCULOS (Inventario)
 // ─────────────────────────────────────────────
 
-model Vehicle {
-  id          String        @id @default(cuid())
+model Property {
+  id          String         @id @default(cuid())
   workspaceId String
-  sku         String?       @unique
-  status      VehicleStatus @default(DISPONIBLE)
+  sku         String? // código interno de la propiedad, único por inmobiliaria
+  status      PropertyStatus @default(DISPONIBLE)
 
-  // Info básica
-  make         String
-  model        String
-  year         Int
-  trim         String?
-  color        String?
-  colorHex     String?
-  vin          String?      @unique
-  mileage      Int?         @default(0)
-  transmission Transmission @default(AUTOMATICO)
-  fuelType     FuelType     @default(GASOLINA)
-  bodyType     BodyType?
-  engineCC     Int?
-  doors        Int?         @default(4)
+  // Tipo y operación
+  propertyType PropertyType @default(APARTAMENTO)
+  listingType  ListingType  @default(VENTA)
+  title        String
+  projectName  String? // proyecto / torre / residencial
 
-  // Precios
-  priceDOP     Float?
-  priceUSD     Float?
-  costDOP      Float?
-  minimumPrice Float? // precio mínimo negociable — nunca sale al público, dispara autorización si se vende por debajo (Fase 2B)
+  // Ubicación
+  province  String?
+  city      String?
+  sector    String?
+  address   String?
+  latitude  Float?
+  longitude Float?
+
+  // Características
+  bedrooms       Int?
+  bathrooms      Float? // admite medios baños (2.5)
+  parkingSpaces  Int?
+  constructionM2 Float?
+  landM2         Float?
+  floorNumber    Int?
+  yearBuilt      Int?
+  furnished      Boolean @default(false)
+
+  // Precios (venta: precio total · alquiler: renta mensual)
+  priceDOP       Float?
+  priceUSD       Float?
+  maintenanceDOP Float? // mantenimiento mensual (condominios)
+  minimumPrice   Float? // precio mínimo negociable — nunca sale al público, dispara autorización si se cierra por debajo
+  commissionPct  Float? // % de comisión pactado con el propietario
+
+  // Propietario (captación)
+  ownerName    String?
+  ownerPhone   String?
+  ownerEmail   String?
+  capturedById String? // agente que captó la propiedad
 
   // Multimedia
-  photos   VehiclePhoto[]
-  videoUrl String?
+  photos         PropertyPhoto[]
+  videoUrl       String?
+  virtualTourUrl String?
 
-  // Inventario
-  lotLocation  String?
-  daysInLot    Int       @default(0)
-  arrivalDate  DateTime?
+  // Seguimiento
+  daysListed   Int       @default(0)
+  listedAt     DateTime?
   soldDate     DateTime?
   soldToLeadId String?
   soldByUserId String?
 
   // Descripción / extras
   description String?
-  features    String[] @default([])
-  tags        Tag[]    @relation("VehicleTags")
+  features    String[] @default([]) // piscina, gimnasio, seguridad 24h, ascensor…
+  tags        Tag[]    @relation("PropertyTags")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  leads        Lead[]                @relation("InterestedVehicle")
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads        Lead[]                 @relation("InterestedProperty")
   deals        Deal[]
-  priceHistory VehiclePriceHistory[]
-  conduces     Conduce[]
+  priceHistory PropertyPriceHistory[]
   activities   Activity[]
-  soldToLead   Lead?                 @relation("VehicleSoldTo", fields: [soldToLeadId], references: [id])
-  soldByUser   User?                 @relation("VehicleSoldBy", fields: [soldByUserId], references: [id])
+  soldToLead   Lead?                  @relation("PropertySoldTo", fields: [soldToLeadId], references: [id])
+  soldByUser   User?                  @relation("PropertySoldBy", fields: [soldByUserId], references: [id])
+  capturedBy   User?                  @relation("PropertyCapturedBy", fields: [capturedById], references: [id])
   quotes       Quote[]
   salesOrders  SalesOrder[]
 
+  @@unique([workspaceId, sku])
   @@index([workspaceId, status])
-  @@index([workspaceId, make, model])
-  @@map("vehicles")
+  @@index([workspaceId, listingType, propertyType])
+  @@index([workspaceId, city, sector])
+  @@map("properties")
 }
 
-model VehiclePhoto {
-  id        String  @id @default(cuid())
-  vehicleId String
-  url       String
-  isPrimary Boolean @default(false)
-  order     Int     @default(0)
+model PropertyPhoto {
+  id         String  @id @default(cuid())
+  propertyId String
+  url        String
+  isPrimary  Boolean @default(false)
+  order      Int     @default(0)
 
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  @@map("vehicle_photos")
+  @@map("property_photos")
 }
 
-model VehiclePriceHistory {
-  id        String   @id @default(cuid())
-  vehicleId String
-  priceDOP  Float?
-  priceUSD  Float?
-  note      String?
-  createdAt DateTime @default(now())
+model PropertyPriceHistory {
+  id         String   @id @default(cuid())
+  propertyId String
+  priceDOP   Float?
+  priceUSD   Float?
+  note       String?
+  createdAt  DateTime @default(now())
 
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  @@index([vehicleId, createdAt])
-  @@map("vehicle_price_history")
+  @@index([propertyId, createdAt])
+  @@map("property_price_history")
 }
 
-enum VehicleStatus {
+enum PropertyStatus {
   DISPONIBLE
   RESERVADO
   VENDIDO
+  ALQUILADO
   EN_PREPARACION
-  FUERA_DE_INVENTARIO
+  FUERA_DE_CATALOGO
 }
 
-enum Transmission {
-  AUTOMATICO
-  MANUAL
-  CVT
-  SEMI_AUTO
+enum PropertyType {
+  APARTAMENTO
+  CASA
+  VILLA
+  PENTHOUSE
+  TERRENO
+  LOCAL_COMERCIAL
+  OFICINA
+  NAVE_INDUSTRIAL
+  PROYECTO
+  OTRO
 }
 
-enum FuelType {
-  GASOLINA
-  DIESEL
-  HIBRIDO
-  ELECTRICO
-  GAS
-}
-
-enum BodyType {
-  SEDAN
-  SUV
-  PICKUP
-  HATCHBACK
-  COUPE
-  VAN
-  MINIVAN
-  CONVERTIBLE
-  WAGON
+enum ListingType {
+  VENTA
+  ALQUILER
+  VENTA_ALQUILER
 }
 
 // ─────────────────────────────────────────────
@@ -298,16 +308,17 @@ model Lead {
   pipelineId String?
 
   // Interés
-  interestedVehicleId String?
-  budgetMin           Float?
-  budgetMax           Float?
-  budgetCurrency      String  @default("DOP")
+  interestedPropertyId String?
+  budgetMin            Float?
+  budgetMax            Float?
+  budgetCurrency       String  @default("DOP")
 
-  // Match inverso
-  desiredMake  String?
-  desiredModel String?
-  desiredYear  Int?
-  desiredColor String?
+  // Match inverso (qué busca el cliente)
+  desiredPropertyType PropertyType?
+  desiredListingType  ListingType?
+  desiredCity         String?
+  desiredSector       String?
+  desiredBedrooms     Int?
 
   // Metadata
   isActive    Boolean   @default(true)
@@ -319,7 +330,7 @@ model Lead {
 
   workspace          Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   assignedUser       User?                  @relation("AssignedLeads", fields: [assignedTo], references: [id])
-  interestedVehicle  Vehicle?               @relation("InterestedVehicle", fields: [interestedVehicleId], references: [id])
+  interestedProperty Property?              @relation("InterestedProperty", fields: [interestedPropertyId], references: [id])
   pipeline           Pipeline?              @relation(fields: [pipelineId], references: [id])
   conversations      Conversation[]
   deals              Deal[]
@@ -327,11 +338,10 @@ model Lead {
   appointments       Appointment[]
   activities         Activity[]
   notifications      Notification[]
-  conduces           Conduce[]
   dueDiligences      CustomerDueDiligence[]
   quotes             Quote[]
   salesOrders        SalesOrder[]
-  vehiclesBought     Vehicle[]              @relation("VehicleSoldTo")
+  propertiesBought   Property[]             @relation("PropertySoldTo")
   operationDocuments OperationDocument[]
 
   @@index([workspaceId, stage])
@@ -392,7 +402,7 @@ model Deal {
   id           String  @id @default(cuid())
   workspaceId  String
   leadId       String
-  vehicleId    String?
+  propertyId   String?
   stageId      String?
   pipelineId   String
   assignedToId String?
@@ -409,7 +419,7 @@ model Deal {
   updatedAt DateTime @updatedAt
 
   lead       Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  vehicle    Vehicle?       @relation(fields: [vehicleId], references: [id])
+  property   Property?      @relation(fields: [propertyId], references: [id])
   stage      PipelineStage? @relation(fields: [stageId], references: [id])
   pipeline   Pipeline       @relation(fields: [pipelineId], references: [id])
   assignedTo User?          @relation("AssignedDeals", fields: [assignedToId], references: [id])
@@ -482,7 +492,6 @@ model CommissionRule {
 
 enum CommissionCalcType {
   PERCENT_OF_VALUE
-  PERCENT_OF_MARGIN
   FIXED_AMOUNT
 }
 
@@ -609,7 +618,7 @@ model Appointment {
   assignedTo    String?
   title         String
   notes         String?
-  type          AppointmentType   @default(VISITA_DEALER)
+  type          AppointmentType   @default(VISITA_PROPIEDAD)
   status        AppointmentStatus @default(AGENDADA)
   startAt       DateTime
   endAt         DateTime
@@ -628,11 +637,11 @@ model Appointment {
 }
 
 enum AppointmentType {
-  VISITA_DEALER
+  VISITA_PROPIEDAD
   LLAMADA
   VIDEO_LLAMADA
-  TEST_DRIVE
-  ENTREGA
+  FIRMA_CONTRATO
+  ENTREGA_LLAVES
   SEGUIMIENTO
 }
 
@@ -814,7 +823,7 @@ enum AgentType {
   CONVERSACIONAL // responde mensajes entrantes
   CALIFICADOR // score y califica leads
   SEGUIMIENTO // follow-up automático
-  NOTIFICADOR // alerta al vendedor
+  NOTIFICADOR // alerta al agente
   ANALIZADOR // analiza conversaciones
 }
 
@@ -911,7 +920,7 @@ enum AutomationTrigger {
   MESSAGE_RECEIVED
   APPOINTMENT_CREATED
   APPOINTMENT_REMINDER
-  VEHICLE_SOLD
+  PROPERTY_SOLD
   TASK_DUE
   INACTIVITY
   CUSTOM
@@ -1005,19 +1014,19 @@ model Activity {
   id          String       @id @default(cuid())
   workspaceId String
   leadId      String?
-  vehicleId   String?
+  propertyId  String?
   userId      String?
   type        ActivityType
   description String
   metadata    Json         @default("{}")
   createdAt   DateTime     @default(now())
 
-  lead    Lead?    @relation(fields: [leadId], references: [id])
-  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
-  user    User?    @relation(fields: [userId], references: [id])
+  lead     Lead?     @relation(fields: [leadId], references: [id])
+  property Property? @relation(fields: [propertyId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id])
 
   @@index([leadId, createdAt])
-  @@index([vehicleId, createdAt])
+  @@index([propertyId, createdAt])
   @@index([workspaceId, createdAt])
   @@map("activities")
 }
@@ -1031,7 +1040,7 @@ enum ActivityType {
   CALL_MADE
   APPOINTMENT_CREATED
   APPOINTMENT_COMPLETED
-  VEHICLE_VIEWED
+  PROPERTY_VIEWED
   DEAL_WON
   DEAL_LOST
   TASK_COMPLETED
@@ -1088,9 +1097,9 @@ model Tag {
   name        String
   color       String @default("#6366f1")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  leads     Lead[]    @relation("LeadTags")
-  vehicles  Vehicle[] @relation("VehicleTags")
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads      Lead[]     @relation("LeadTags")
+  properties Property[] @relation("PropertyTags")
 
   @@unique([workspaceId, name])
   @@map("tags")
@@ -1133,102 +1142,39 @@ model AiUsageLog {
 }
 
 // ─────────────────────────────────────────────
-// CONDUCES (movimiento físico de vehículos) — Fase 2A
+// CONDUCES (movimiento físico de propiedades) — Fase 2A
 // ─────────────────────────────────────────────
-
-enum ConduceType {
-  ENTRADA
-  SALIDA
-}
-
-enum ConduceReason {
-  INGRESO_LOTE
-  PRUEBA_MANEJO
-  TRASLADO_TALLER
-  TRASLADO_SUCURSAL
-  ENTREGA_CLIENTE
-  DEVOLUCION_PRUEBA
-  OTRO
-}
-
-enum ConduceStatus {
-  ABIERTO // salida sin retorno registrado
-  CERRADO // ciclo completo
-  VENCIDO // salida que excedió el tiempo esperado sin retorno
-}
-
-model Conduce {
-  id                  String        @id @default(cuid())
-  workspaceId         String
-  vehicleId           String
-  // Movimiento
-  type                ConduceType
-  reason              ConduceReason
-  reasonDetail        String?
-  // Responsables
-  authorizedById      String // usuario que autoriza
-  driverName          String? // chofer o responsable físico (puede no ser usuario del sistema)
-  driverDocument      String? // cédula del chofer si es externo
-  // Ubicación
-  originLocation      String?
-  destinationLocation String?
-  // Estado del vehículo al momento
-  mileageAtMovement   Int?
-  observations        String?       @db.Text
-  // Vinculación opcional
-  leadId              String? // si es prueba de manejo con un lead específico
-  // Control de retorno (para salidas)
-  expectedReturnAt    DateTime?
-  actualReturnAt      DateTime?
-  returnConduceId     String? // conduce de entrada que cierra esta salida
-  status              ConduceStatus @default(ABIERTO)
-  // Documento
-  documentUrl         String? // PDF generado
-  // Metadata
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  authorizedBy User      @relation("ConduceAuthorizer", fields: [authorizedById], references: [id])
-  lead         Lead?     @relation(fields: [leadId], references: [id])
-
-  @@index([workspaceId, status])
-  @@index([vehicleId, createdAt])
-  @@index([expectedReturnAt]) // para job de detección de vencidos
-  @@map("conduces")
-}
 
 // ─────────────────────────────────────────────
 // PÁGINA WEB (catálogo público) — Fase 2A
 // ─────────────────────────────────────────────
 
 model WebsiteConfig {
-  id                 String   @id @default(cuid())
-  workspaceId        String   @unique
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
   // Dominio
-  subdomain          String?  @unique // ej. h1g — reservado para uso futuro (subdominio real), hoy no hay resolución activa
-  customDomain       String?  @unique
-  isPublished        Boolean  @default(false)
+  subdomain           String?  @unique // ej. mi-inmobiliaria — reservado para uso futuro (subdominio real), hoy no hay resolución activa
+  customDomain        String?  @unique
+  isPublished         Boolean  @default(false)
   // Branding
-  logoUrl            String?
-  primaryColor       String?  @default("#2563EB")
-  heroImageUrl       String?
-  tagline            String?
+  logoUrl             String?
+  primaryColor        String?  @default("#2563EB")
+  heroImageUrl        String?
+  tagline             String?
   // Contenido
-  aboutText          String?  @db.Text
-  whatsappNumber     String? // botón de contacto directo
-  addressText        String?
-  businessHoursText  String?
+  aboutText           String?  @db.Text
+  whatsappNumber      String? // botón de contacto directo
+  addressText         String?
+  businessHoursText   String?
   // Comportamiento del catálogo
-  showPrices         Boolean  @default(true)
-  featuredVehicleIds String[] @default([])
+  showPrices          Boolean  @default(true)
+  featuredPropertyIds String[] @default([])
   // SEO
-  metaTitle          String?
-  metaDescription    String?
+  metaTitle           String?
+  metaDescription     String?
   // Metadata
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -1329,7 +1275,7 @@ model Quote {
   workspaceId    String
   quoteNumber    String
   leadId         String
-  vehicleId      String
+  propertyId     String
   createdById    String
   // Términos
   offeredPrice   Float
@@ -1353,7 +1299,7 @@ model Quote {
 
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   lead        Lead         @relation(fields: [leadId], references: [id])
-  vehicle     Vehicle      @relation(fields: [vehicleId], references: [id])
+  property    Property     @relation(fields: [propertyId], references: [id])
   createdBy   User         @relation(fields: [createdById], references: [id])
   salesOrders SalesOrder[]
 
@@ -1381,11 +1327,11 @@ model SalesOrder {
   orderNumber        String
   // Vinculaciones
   leadId             String
-  vehicleId          String
+  propertyId         String
   quoteId            String?
   ddcId              String?
   dealId             String             @unique
-  // Vendedor
+  // Agente
   soldById           String
   // Términos financieros
   salePrice          Float
@@ -1409,21 +1355,21 @@ model SalesOrder {
 
   workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   lead      Lead                  @relation(fields: [leadId], references: [id])
-  vehicle   Vehicle               @relation(fields: [vehicleId], references: [id])
+  property  Property              @relation(fields: [propertyId], references: [id])
   quote     Quote?                @relation(fields: [quoteId], references: [id])
   ddc       CustomerDueDiligence? @relation(fields: [ddcId], references: [id])
   deal      Deal                  @relation(fields: [dealId], references: [id])
   soldBy    User                  @relation("SalesOrderSeller", fields: [soldById], references: [id])
 
-  authorizations        SalesAuthorization[]
-  contracts             Contract[]
-  procedures            PostSaleProcedure[]
-  documents             OperationDocument[]
+  authorizations SalesAuthorization[]
+  contracts      Contract[]
+  procedures     PostSaleProcedure[]
+  documents      OperationDocument[]
 
   @@unique([workspaceId, orderNumber])
   @@index([workspaceId, status])
   @@index([leadId])
-  @@index([vehicleId])
+  @@index([propertyId])
   @@map("sales_orders")
 }
 
@@ -1473,7 +1419,7 @@ model AuthorizationRule {
   trigger                  AuthorizationTrigger
   discountPercentThreshold Float?
   amountThreshold          Float?
-  requiredApproverRole     Role                 @default(ADMIN_DEALER)
+  requiredApproverRole     Role                 @default(ADMIN)
   isActive                 Boolean              @default(true)
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
@@ -1540,8 +1486,8 @@ enum OperationDocumentType {
   CONTRATO
   COMPROBANTE_PAGO
   DDC_SOPORTE
-  MATRICULA
-  SEGURO
+  TITULO_PROPIEDAD
+  CERTIFICACION_TITULO
   OTRO
 }
 
@@ -1572,12 +1518,11 @@ model OperationDocument {
 // ── Trámites post-venta ──
 
 enum ProcedureType {
-  SEGUNDA_LLAVE
-  TRASPASO
-  ENDOSO
-  MATRICULA
-  PLACA
-  SEGURO
+  LEGALIZACION_CONTRATO
+  CERTIFICACION_ESTATUS_JURIDICO
+  IMPUESTO_TRANSFERENCIA
+  TRANSFERENCIA_TITULO
+  ENTREGA_LLAVES
   OTRO
 }
 
@@ -1592,7 +1537,7 @@ model PostSaleProcedure {
   id           String          @id @default(cuid())
   workspaceId  String
   salesOrderId String
-  vehicleId    String
+  propertyId   String
   type         ProcedureType
   typeDetail   String?
   description  String?         @db.Text

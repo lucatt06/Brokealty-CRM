@@ -41,7 +41,7 @@ type Order = {
   id: string; orderNumber: string; status: "BORRADOR" | "PENDIENTE_AUTORIZACION" | "AUTORIZADA" | "EN_PROCESO" | "COMPLETADA" | "CANCELADA";
   salePrice: number; currency: string; paymentMethod: SalesPaymentMethod; downPayment: number | null; installments: number | null; conditionsText: string | null;
   lead: { id: string; firstName: string; lastName: string | null; phone: string };
-  vehicle: { id: string; make: string; model: string; year: number; vin: string | null };
+  property: { id: string; title: string };
   quote: { id: string; quoteNumber: string } | null;
   ddc: Ddc | null;
   soldBy: { id: string; name: string };
@@ -62,7 +62,7 @@ const STATUS_CFG: Record<Order["status"], { label: string; cls: string }> = {
 
 const PAYMENT_LABELS: Record<string, string> = { CONTADO: "Contado", FINANCIAMIENTO_BANCARIO: "Financiamiento bancario", MIXTO: "Mixto", OTRO: "Otro" };
 const DDC_STATUS_LABELS: Record<string, string> = { PENDIENTE: "Pendiente", EN_REVISION: "En revisión", APROBADO: "Aprobado", RECHAZADO: "Rechazado" };
-const OP_DOC_TYPES: OperationDocumentType[] = ["CEDULA", "PASAPORTE", "CONTRATO", "COMPROBANTE_PAGO", "DDC_SOPORTE", "MATRICULA", "SEGURO", "OTRO"];
+const OP_DOC_TYPES: OperationDocumentType[] = ["CEDULA", "PASAPORTE", "CONTRATO", "COMPROBANTE_PAGO", "DDC_SOPORTE", "TITULO_PROPIEDAD", "CERTIFICACION_TITULO", "OTRO"];
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
@@ -123,9 +123,8 @@ export function SalesOrderDetailClient({ order, leadDdcs, templates, users, canM
             <p className="text-[11px] text-muted-foreground">{order.lead.phone}</p>
           </div>
           <div className="px-4 py-3 border-b border-border">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Vehículo</p>
-            <Link href={`/inventario/${order.vehicle.id}`} className="text-[13px] font-semibold text-primary hover:underline">{order.vehicle.make} {order.vehicle.model} {order.vehicle.year}</Link>
-            {order.vehicle.vin && <p className="text-[11px] text-muted-foreground">VIN {order.vehicle.vin}</p>}
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Propiedad</p>
+            <Link href={`/inventario/${order.property.id}`} className="text-[13px] font-semibold text-primary hover:underline">{order.property.title}</Link>
           </div>
           {order.quote && (
             <div className="px-4 py-3 border-b border-border">
