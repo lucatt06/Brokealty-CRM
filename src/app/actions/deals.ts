@@ -1,11 +1,16 @@
 "use server";
 
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
 import { createSalesOrderFromDeal } from "@/app/actions/sales-orders";
 
 export async function updateDealStage(dealId: string, stageId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
+  await assertOwns("stage", stageId, ctx.workspace.id);
+  if (!(await prisma.deal.count({ where: { id: dealId, pipeline: { stages: { some: { id: stageId } } } } }))) throw new AuthError("La etapa no pertenece al pipeline del negocio.");
   const [deal, newStage] = await Promise.all([
     prisma.deal.findUnique({
       where: { id: dealId },
@@ -56,6 +61,9 @@ export async function updateDealStage(dealId: string, stageId: string) {
 }
 
 export async function updateDealStatus(dealId: string, status: "OPEN" | "WON" | "LOST") {
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
+  if (status === "WON") throw new AuthError("Un negocio se gana completando su Orden de Venta.");
   await prisma.deal.update({
     where: { id: dealId },
     data: { status, closedAt: status !== "OPEN" ? new Date() : null },
@@ -73,6 +81,14 @@ export async function createDeal(
   currency: string,
   propertyId?: string,
 ) {
+  const ctx = await requireCtx();
+  assertWorkspace(ctx, workspaceId);
+  await assertOwns("pipeline", pipelineId, workspaceId);
+  await assertOwns("lead", leadId, workspaceId);
+  await assertOwns("stage", stageId, workspaceId);
+  await assertOwns("property", propertyId, workspaceId);
+  if (currency !== "DOP" && currency !== "USD") throw new AuthError("Moneda no válida.");
+  if (value != null && !(Number.isFinite(value) && value >= 0)) throw new AuthError("Valor no válido.");
   await prisma.deal.create({
     data: {
       workspaceId, pipelineId, leadId, stageId,
@@ -84,16 +100,25 @@ export async function createDeal(
 }
 
 export async function updateDealValue(dealId: string, value: number | null, currency: string) {
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
+  if (currency !== "DOP" && currency !== "USD") throw new AuthError("Moneda no válida.");
+  if (value != null && !(Number.isFinite(value) && value >= 0)) throw new AuthError("Valor no válido.");
   await prisma.deal.update({ where: { id: dealId }, data: { value, currency } });
   revalidatePath("/negocios");
 }
 
 export async function updateDealAssignee(dealId: string, userId: string | null) {
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
+  await assertMember(userId, ctx.workspace.id);
   await prisma.deal.update({ where: { id: dealId }, data: { assignedToId: userId } });
   revalidatePath("/negocios");
 }
 
 export async function updateDealExpectedClose(dealId: string, expectedCloseAt: string | null) {
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
   await prisma.deal.update({
     where: { id: dealId },
     data: { expectedCloseAt: expectedCloseAt ? new Date(expectedCloseAt) : null },
@@ -110,6 +135,8 @@ export async function updateDealExpectedClose(dealId: string, expectedCloseAt: s
  */
 export async function closeDeal(dealId: string, status: "WON" | "LOST", lostReason?: string): Promise<{ salesOrderId?: string }> {
   if (status === "WON") {
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
     return createSalesOrderFromDeal(dealId);
   }
 

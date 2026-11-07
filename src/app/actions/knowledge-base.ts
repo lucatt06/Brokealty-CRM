@@ -1,5 +1,6 @@
 "use server";
 
+import { assertOwns, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -7,6 +8,8 @@ type KnowledgeItemType = "TEXTO" | "PREGUNTA_FRECUENTE" | "ARCHIVO" | "URL" | "T
 
 // ── Bases de conocimiento ──────────────────────────────────
 export async function listKnowledgeBases(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const bases = await prisma.knowledgeBase.findMany({
     where: { workspaceId },
     include: { _count: { select: { items: true } } },
@@ -16,20 +19,26 @@ export async function listKnowledgeBases(workspaceId: string) {
 }
 
 export async function createKnowledgeBase(workspaceId: string, name: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const kb = await prisma.knowledgeBase.create({ data: { workspaceId, name } });
   revalidatePath("/agentes");
   return kb;
 }
 
 export async function renameKnowledgeBase(id: string, name: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("knowledgeBase", id, ctx.workspace.id);
   await prisma.knowledgeBase.update({ where: { id }, data: { name } });
   revalidatePath("/agentes");
 }
 
 export async function deleteKnowledgeBase(id: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("knowledgeBase", id, ctx.workspace.id);
   await prisma.knowledgeBase.delete({ where: { id } });
   // Desvincular de cualquier agente que la tuviera adjunta
-  const agents = await prisma.aIAgent.findMany({ where: { knowledgeBaseIds: { has: id } } });
+  const agents = await prisma.aIAgent.findMany({ where: { workspaceId: ctx.workspace.id, knowledgeBaseIds: { has: id } } });
   await Promise.all(
     agents.map((a) =>
       prisma.aIAgent.update({
@@ -49,6 +58,8 @@ export async function addKnowledgeItem(knowledgeBaseId: string, data: {
   fileUrl?: string | null;
   sourceUrl?: string | null;
 }) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("knowledgeBase", knowledgeBaseId, ctx.workspace.id);
   const item = await prisma.knowledgeBaseItem.create({
     data: {
       knowledgeBaseId,
@@ -66,6 +77,8 @@ export async function addKnowledgeItem(knowledgeBaseId: string, data: {
 }
 
 export async function removeKnowledgeItem(id: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("knowledgeItem", id, ctx.workspace.id);
   const item = await prisma.knowledgeBaseItem.delete({ where: { id } });
   revalidatePath(`/agentes/knowledge-base/${item.knowledgeBaseId}`);
   revalidatePath("/agentes");
@@ -73,6 +86,9 @@ export async function removeKnowledgeItem(id: string) {
 
 // ── Asignación a agentes ────────────────────────────────────
 export async function setAgentKnowledgeBases(agentId: string, knowledgeBaseIds: string[]) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", agentId, ctx.workspace.id);
+  await assertOwns("knowledgeBase", knowledgeBaseIds, ctx.workspace.id);
   await prisma.aIAgent.update({ where: { id: agentId }, data: { knowledgeBaseIds } });
   revalidatePath(`/agentes/${agentId}`);
 }

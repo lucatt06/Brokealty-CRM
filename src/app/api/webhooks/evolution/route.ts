@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { EVOLUTION_SIGNATURE_HEADER, verifyEvolutionWebhook } from "@/lib/evolution/webhook-auth";
 import { ENTRY_STAGE_NAME } from "@/lib/pipeline/default-stages";
 import { prisma } from "@/lib/prisma";
 import { runAgentTurn } from "@/lib/agent/orchestrator";
@@ -118,6 +119,11 @@ async function handleConnectionUpdate(body: EvolutionConnectionUpdateBody) {
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as EvolutionMessageUpsertBody | EvolutionConnectionUpdateBody | EvolutionMessageUpdateBody;
+
+  // Sin firma válida para esa instancia, cualquiera podría inyectar mensajes falsos en un workspace.
+  if (!verifyEvolutionWebhook(body.instance, req.headers.get(EVOLUTION_SIGNATURE_HEADER))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   if (body.event === "connection.update") {
     await handleConnectionUpdate(body as EvolutionConnectionUpdateBody);

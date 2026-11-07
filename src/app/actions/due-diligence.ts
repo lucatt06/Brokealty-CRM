@@ -1,5 +1,6 @@
 "use server";
 
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
@@ -52,6 +53,10 @@ type DdcInput = {
 };
 
 export async function createOrUpdateDdc(ddcId: string | null, leadId: string, workspaceId: string, data: DdcInput) {
+  const ctx = await requireCtx();
+  assertWorkspace(ctx, workspaceId);
+  await assertOwns("lead", leadId, workspaceId);
+  await assertOwns("ddc", ddcId, workspaceId);
   const riskLevel = await calculateRiskLevel(workspaceId, data);
   const isHighRisk = riskLevel === "ALTO";
 
@@ -84,6 +89,8 @@ export async function createOrUpdateDdc(ddcId: string | null, leadId: string, wo
 }
 
 export async function approveDdc(ddcId: string, notes?: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("ddc", ddcId, ctx0.workspace.id);
   const ctx = await requireAdmin();
   const ddc = await prisma.customerDueDiligence.update({
     where: { id: ddcId },
@@ -97,6 +104,8 @@ export async function approveDdc(ddcId: string, notes?: string) {
 }
 
 export async function rejectDdc(ddcId: string, reason: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("ddc", ddcId, ctx0.workspace.id);
   if (!reason.trim()) throw new Error("Rechazar una Debida Diligencia requiere un motivo.");
   const ctx = await requireAdmin();
   const ddc = await prisma.customerDueDiligence.update({

@@ -6,14 +6,20 @@ import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
 import { getDefaultPipelineEntryStage } from "@/lib/leads/default-deal";
 import { LISTING_TYPES, PROPERTY_TYPES } from "@/lib/properties/labels";
 
-async function getWorkspaceId() {
-  const ctx = await getActiveWorkspace();
-  return ctx?.workspace.id ?? "";
-}
 
 export async function POST(req: NextRequest) {
+  const ctx = await getActiveWorkspace();
+  if (!ctx) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const WORKSPACE_ID = ctx.workspace.id;
+
   const body = await req.json();
-  const WORKSPACE_ID = await getWorkspaceId();
+  if (!body?.firstName?.trim?.() || !body?.phone?.trim?.()) {
+    return NextResponse.json({ error: "Nombre y teléfono son obligatorios." }, { status: 400 });
+  }
+  if (body.assignedTo) {
+    const isMember = await prisma.workspaceUser.count({ where: { userId: body.assignedTo, workspaceId: WORKSPACE_ID, isActive: true } });
+    if (!isMember) return NextResponse.json({ error: "Ese usuario no pertenece al equipo." }, { status: 400 });
+  }
 
   const entryStage = await getDefaultPipelineEntryStage(WORKSPACE_ID);
 
@@ -70,12 +76,14 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
-  const WORKSPACE_ID = await getWorkspaceId();
+  const ctx = await getActiveWorkspace();
+  if (!ctx) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  await prisma.lead.update({
-    where: { id, workspaceId: WORKSPACE_ID },
+  const { count } = await prisma.lead.updateMany({
+    where: { id, workspaceId: ctx.workspace.id },
     data: { isActive: false },
   });
+  if (count === 0) return NextResponse.json({ error: "Lead no encontrado" }, { status: 404 });
 
   return NextResponse.json({ ok: true });
 }

@@ -1,10 +1,11 @@
 "use server";
 
+import { AuthError, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
-import { evaluateAuthorizationTriggers } from "@/app/actions/sales-authorizations";
+import { evaluateAuthorizationTriggers } from "@/lib/sales/authorization-triggers";
 import { getNextDocumentNumber } from "@/lib/sequences/document-number";
 import { logAuditEvent } from "@/lib/audit";
 import type { CommissionRule, ProcedureType, SalesPaymentMethod } from "@prisma/client";
@@ -35,8 +36,8 @@ async function requireAdmin() {
  * orden se complete de verdad (Documento 7, sección 6.1).
  */
 export async function createSalesOrderFromDeal(dealId: string): Promise<{ salesOrderId: string }> {
-  const ctx = await getActiveWorkspace();
-  if (!ctx) throw new Error("Sesión no válida.");
+  const ctx = await requireCtx();
+  await assertOwns("deal", dealId, ctx.workspace.id);
 
   const existing = await prisma.salesOrder.findUnique({ where: { dealId }, select: { id: true } });
   if (existing) return { salesOrderId: existing.id };
@@ -90,6 +91,11 @@ type UpdateTermsInput = {
 };
 
 export async function updateSalesOrderTerms(salesOrderId: string, data: UpdateTermsInput) {
+  const ctx0 = await requireCtx();
+  await assertOwns("salesOrder", salesOrderId, ctx0.workspace.id);
+  await assertOwns("ddc", data.ddcId, ctx0.workspace.id);
+  if (data.currency !== "DOP" && data.currency !== "USD") throw new AuthError("Moneda no válida.");
+  if (!Number.isFinite(data.salePrice) || data.salePrice <= 0) throw new AuthError("Precio no válido.");
   await prisma.salesOrder.update({
     where: { id: salesOrderId },
     data: {
@@ -107,6 +113,8 @@ export async function updateSalesOrderTerms(salesOrderId: string, data: UpdateTe
  * (nunca construido). Ver plan de Fase 2B para el detalle de qué se omite y por qué.
  */
 export async function completeSalesOrder(salesOrderId: string) {
+  const ctx0 = await requireCtx();
+  await assertOwns("salesOrder", salesOrderId, ctx0.workspace.id);
   const ctx = await getActiveWorkspace();
   if (!ctx) throw new Error("Sesión no válida.");
 
@@ -222,6 +230,8 @@ export async function completeSalesOrder(salesOrderId: string) {
 }
 
 export async function cancelSalesOrder(salesOrderId: string, reason: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("salesOrder", salesOrderId, ctx0.workspace.id);
   if (!reason.trim()) throw new Error("Cancelar una orden de venta requiere un motivo.");
   const ctx = await requireAdmin();
   const order = await prisma.salesOrder.update({

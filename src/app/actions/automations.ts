@@ -1,5 +1,6 @@
 "use server";
 
+import { AuthError, assertOwns, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import Anthropic from "@anthropic-ai/sdk";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -65,8 +66,11 @@ const PROPOSE_TOOL: Anthropic.Tool = {
 export async function proposeAutomationFromText(workspaceId: string, text: string): Promise<
   { proposal: AutomationProposal; error?: undefined } | { proposal?: undefined; error: string }
 > {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const trimmed = text.trim();
   if (!trimmed) return { error: "Describe qué quieres automatizar." };
+  if (trimmed.length > 4000) return { error: "La descripción es demasiado larga." };
 
   const apiKey = (await getWorkspaceAiKey(workspaceId, "ANTHROPIC")) ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "Configura una API key de Anthropic en Integraciones (o ANTHROPIC_API_KEY en .env.local)." };
@@ -90,12 +94,21 @@ export async function proposeAutomationFromText(workspaceId: string, text: strin
 
     return { proposal: toolUse.input as AutomationProposal };
   } catch (e) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
     const msg = e instanceof Error ? e.message : "Error desconocido";
     return { error: `No se pudo contactar al modelo: ${msg}` };
   }
 }
 
 export async function createAutomationFromProposal(workspaceId: string, proposal: AutomationProposal) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
+  if (!(TRIGGERS as readonly string[]).includes(proposal.trigger)) throw new AuthError("Disparador no válido.");
+  if (!Array.isArray(proposal.actions) || proposal.actions.length === 0 || proposal.actions.length > 20) throw new AuthError("Acciones no válidas.");
+  for (const a of proposal.actions) {
+    if (!(ACTION_TYPES as readonly string[]).includes(a.type)) throw new AuthError("Tipo de acción no válido.");
+  }
   await prisma.automation.create({
     data: {
       workspaceId,
@@ -113,6 +126,8 @@ export async function createAutomationFromProposal(workspaceId: string, proposal
 }
 
 export async function listAutomations(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const rows = await prisma.automation.findMany({
     where: { workspaceId },
     include: { actions: { orderBy: { order: "asc" } } },
@@ -122,11 +137,15 @@ export async function listAutomations(workspaceId: string) {
 }
 
 export async function toggleAutomationActive(id: string, isActive: boolean) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("automation", id, ctx.workspace.id);
   await prisma.automation.update({ where: { id }, data: { isActive } });
   revalidatePath("/automatizaciones");
 }
 
 export async function deleteAutomation(id: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("automation", id, ctx.workspace.id);
   await prisma.automation.delete({ where: { id } });
   revalidatePath("/automatizaciones");
 }

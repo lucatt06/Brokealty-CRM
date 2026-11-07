@@ -1,5 +1,6 @@
 "use server";
 
+import { assertMember, assertOwns, assertWorkspace, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -16,6 +17,10 @@ export async function createTask(data: {
   priority?: Priority;
   status?: TaskStatus;
 }) {
+  const ctx = await requireCtx();
+  assertWorkspace(ctx, data.workspaceId);
+  await assertOwns("lead", data.leadId, ctx.workspace.id);
+  await assertMember(data.assignedTo, ctx.workspace.id);
   await prisma.task.create({
     data: {
       workspaceId: data.workspaceId,
@@ -41,6 +46,10 @@ export async function updateTask(id: string, data: {
   status?: TaskStatus;
   completedAt?: string | null;
 }) {
+  const ctx = await requireCtx();
+  await assertOwns("task", id, ctx.workspace.id);
+  await assertOwns("lead", data.leadId, ctx.workspace.id);
+  await assertMember(data.assignedTo, ctx.workspace.id);
   await prisma.task.update({
     where: { id },
     data: {
@@ -58,6 +67,8 @@ export async function updateTask(id: string, data: {
 }
 
 export async function toggleTaskStatus(id: string, currentStatus: TaskStatus) {
+  const ctx = await requireCtx();
+  await assertOwns("task", id, ctx.workspace.id);
   const next = currentStatus === "COMPLETADA" ? "PENDIENTE" : "COMPLETADA";
   await prisma.task.update({
     where: { id },
@@ -70,6 +81,8 @@ export async function toggleTaskStatus(id: string, currentStatus: TaskStatus) {
 }
 
 export async function deleteTask(id: string) {
+  const ctx = await requireCtx();
+  await assertOwns("task", id, ctx.workspace.id);
   await prisma.task.delete({ where: { id } });
   revalidatePath("/tareas");
 }

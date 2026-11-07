@@ -1,11 +1,16 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { AgentEditorClient } from "@/components/agentes/agent-editor-client";
 import { ensureBuiltInTools } from "@/app/actions/agent-config";
 
 export default async function AgentEditorPage({ params }: { params: { id: string } }) {
-  const agent = await prisma.aIAgent.findUnique({
-    where: { id: params.id },
+  const ctx = await getActiveWorkspace();
+  if (!ctx) redirect("/login");
+  if (ctx.role === "AGENTE") notFound(); // la configuración de agentes IA es solo para administradores
+
+  const agent = await prisma.aIAgent.findFirst({
+    where: { id: params.id, workspaceId: ctx.workspace.id },
     include: { workspace: { select: { name: true } } },
   });
 

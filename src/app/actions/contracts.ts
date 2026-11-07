@@ -1,22 +1,16 @@
 "use server";
 
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { renderContractPdf } from "@/lib/pdf/contract-pdf";
 import { uploadContractPdf } from "@/lib/storage/upload-contract-pdf";
 
-async function requireAdmin() {
-  const ctx = await getActiveWorkspace();
-  if (!ctx || (ctx.role !== "ADMIN" && !ctx.isSuperAdmin)) {
-    throw new Error("Solo un Administrador puede administrar plantillas de contrato.");
-  }
-  return ctx;
-}
-
 // ── Plantillas ───────────────────────────────────────────────────
 export async function createContractTemplate(workspaceId: string, data: { name: string; documentType: string; bodyTemplate: string }) {
-  await requireAdmin();
+  const ctx = await requireAdminCtx("Solo un Administrador puede administrar plantillas de contrato.");
+  assertWorkspace(ctx, workspaceId);
   await prisma.contractTemplate.create({
     data: { workspaceId, name: data.name.trim(), documentType: data.documentType.trim(), bodyTemplate: data.bodyTemplate },
   });
@@ -24,7 +18,8 @@ export async function createContractTemplate(workspaceId: string, data: { name: 
 }
 
 export async function updateContractTemplate(id: string, data: { name: string; documentType: string; bodyTemplate: string }) {
-  await requireAdmin();
+  const ctx = await requireAdminCtx("Solo un Administrador puede administrar plantillas de contrato.");
+  await assertOwns("contractTemplate", id, ctx.workspace.id);
   await prisma.contractTemplate.update({
     where: { id },
     data: { name: data.name.trim(), documentType: data.documentType.trim(), bodyTemplate: data.bodyTemplate },
@@ -33,7 +28,8 @@ export async function updateContractTemplate(id: string, data: { name: string; d
 }
 
 export async function toggleContractTemplateActive(id: string, isActive: boolean) {
-  await requireAdmin();
+  const ctx = await requireAdminCtx("Solo un Administrador puede administrar plantillas de contrato.");
+  await assertOwns("contractTemplate", id, ctx.workspace.id);
   await prisma.contractTemplate.update({ where: { id }, data: { isActive } });
   revalidatePath("/configuracion");
 }
@@ -44,8 +40,9 @@ function resolvePlaceholders(template: string, values: Record<string, string>): 
 }
 
 export async function generateContract(salesOrderId: string, templateId: string) {
-  const ctx = await getActiveWorkspace();
-  if (!ctx) throw new Error("Sesión no válida.");
+  const ctx = await requireCtx();
+  await assertOwns("salesOrder", salesOrderId, ctx.workspace.id);
+  await assertOwns("contractTemplate", templateId, ctx.workspace.id);
 
   const [order, template] = await Promise.all([
     prisma.salesOrder.findUnique({
@@ -98,12 +95,16 @@ export async function generateContract(salesOrderId: string, templateId: string)
 }
 
 export async function markContractSent(contractId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("contract", contractId, ctx.workspace.id);
   const contract = await prisma.contract.update({ where: { id: contractId }, data: { status: "ENVIADO", sentAt: new Date() }, select: { salesOrderId: true } });
   revalidatePath(`/ordenes-venta/${contract.salesOrderId}`);
 }
 
 /** FIRMADO es inmutable (Documento 7, sección 7.2) — solo se anula y se genera uno nuevo. */
 export async function markContractSigned(contractId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("contract", contractId, ctx.workspace.id);
   const contract = await prisma.contract.findUnique({ where: { id: contractId }, select: { status: true, workspaceId: true, salesOrderId: true } });
   if (!contract) throw new Error("Contrato no encontrado.");
   if (contract.status === "FIRMADO") throw new Error("Este contrato ya está firmado.");
@@ -117,7 +118,8 @@ export async function markContractSigned(contractId: string) {
 }
 
 export async function voidContract(contractId: string) {
-  await requireAdmin();
+  const ctx = await requireAdminCtx("Solo un Administrador puede administrar plantillas de contrato.");
+  await assertOwns("contract", contractId, ctx.workspace.id);
   const contract = await prisma.contract.update({ where: { id: contractId }, data: { status: "ANULADO" }, select: { salesOrderId: true } });
   revalidatePath(`/ordenes-venta/${contract.salesOrderId}`);
 }

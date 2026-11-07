@@ -1,6 +1,8 @@
 "use server";
 
 import { putFile } from "@/lib/storage/blob";
+import { requireCtx } from "@/lib/auth/guards";
+import { UnsafeUrlError, assertPublicHttpUrl, readTextCapped, safeFetch } from "@/lib/net/safe-fetch";
 
 const PHOTOS_BUCKET = "property-photos";
 const MAX_PHOTO_SIZE = 8 * 1024 * 1024; // 8MB
@@ -28,6 +30,7 @@ type Result = { url: string; error?: undefined } | { url?: undefined; error: str
 
 // ── Subida de archivo directo desde el dispositivo ────────
 export async function uploadPropertyPhotoFile(formData: FormData): Promise<Result> {
+  await requireCtx();
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún archivo." };
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { error: "Formato no soportado. Usa JPG, PNG, WEBP o GIF." };
@@ -45,6 +48,7 @@ export async function uploadPropertyPhotoFile(formData: FormData): Promise<Resul
 
 // ── Subida de adjunto para el chat de prueba del bot (imagen/PDF) ─
 export async function uploadChatAttachment(formData: FormData): Promise<Result> {
+  await requireCtx();
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún archivo." };
   if (!ALLOWED_CHAT_TYPES.includes(file.type)) return { error: "Formato no soportado. Usa JPG, PNG, WEBP, GIF o PDF." };
@@ -62,6 +66,7 @@ export async function uploadChatAttachment(formData: FormData): Promise<Result> 
 
 // ── Subida de nota de voz grabada en el navegador ─────────
 export async function uploadVoiceNote(formData: FormData): Promise<Result> {
+  await requireCtx();
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún audio." };
   if (!file.type.startsWith("audio/")) return { error: "Formato de audio no soportado." };
@@ -79,6 +84,7 @@ export async function uploadVoiceNote(formData: FormData): Promise<Result> {
 
 // ── Subida de archivo para la base de conocimiento del bot ─
 export async function uploadKnowledgeFile(formData: FormData): Promise<Result> {
+  await requireCtx();
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún archivo." };
   if (!ALLOWED_KB_TYPES.includes(file.type)) return { error: "Formato no soportado. Usa PDF, DOC, DOCX, TXT o CSV." };
@@ -96,6 +102,7 @@ export async function uploadKnowledgeFile(formData: FormData): Promise<Result> {
 
 // ── Subida de tabla (CSV/XLSX) para la base de conocimiento ─
 export async function uploadKnowledgeTable(formData: FormData): Promise<Result> {
+  await requireCtx();
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún archivo." };
   if (!ALLOWED_KB_TABLE_TYPES.includes(file.type)) return { error: "Formato no soportado. Usa CSV o XLSX." };
@@ -113,6 +120,7 @@ export async function uploadKnowledgeTable(formData: FormData): Promise<Result> 
 
 // ── Subida de documento operativo (cédula, comprobante, etc. — Fase 2B) ─
 export async function uploadOperationDocumentFile(formData: FormData): Promise<Result> {
+  await requireCtx();
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No se recibió ningún archivo." };
   if (!ALLOWED_OPERATION_DOC_TYPES.includes(file.type)) return { error: "Formato no soportado. Usa JPG, PNG, WEBP o PDF." };
@@ -133,24 +141,15 @@ export async function uploadOperationDocumentFile(formData: FormData): Promise<R
 // (Supercarros, Encuentra24, Facebook Marketplace, etc.) — en ese caso
 // extrae la imagen principal (og:image) de la página.
 export async function resolvePhotoUrl(inputUrl: string): Promise<Result> {
+  await requireCtx();
   let parsed: URL;
-  try {
-    parsed = new URL(inputUrl.trim());
-  } catch {
-    return { error: "Ese no es un enlace válido." };
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return { error: "Solo se permiten enlaces http o https." };
-  }
-
   let res: Response;
   try {
-    res = await fetch(parsed.toString(), {
-      signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; BrokealtyBot/1.0)" },
-    });
+    parsed = await assertPublicHttpUrl(inputUrl.trim());
+    res = await safeFetch(parsed.toString(), { headers: { "User-Agent": "Mozilla/5.0 (compatible; BrokealtyBot/1.0)" } });
   } catch (e) {
-    console.error("[storage] fallo de subida:", e);
+    if (e instanceof UnsafeUrlError) return { error: e.message };
+    console.error("[storage] no se pudo resolver el enlace de foto:", e);
     return { error: "No se pudo cargar ese enlace. Verifica que sea correcto." };
   }
   if (!res.ok) return { error: "No se pudo acceder a ese enlace." };
@@ -162,7 +161,7 @@ export async function resolvePhotoUrl(inputUrl: string): Promise<Result> {
   }
 
   if (contentType.includes("text/html")) {
-    const html = await res.text();
+    const html = await readTextCapped(res);
     const match =
       html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ??
       html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i) ??

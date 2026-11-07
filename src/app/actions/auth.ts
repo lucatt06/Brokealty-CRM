@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, signSession } from "@/lib/auth/session";
 import { createUserWithWorkspace } from "@/lib/auth/provision";
+import { clientIp, rateLimit } from "@/lib/auth/rate-limit";
 import { RESET_TOKEN_TTL_MS, appBaseUrl, createPasswordToken, hashToken, sendAuthEmail } from "@/lib/auth/tokens";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -24,10 +25,20 @@ async function startSession(userId: string) {
   });
 }
 
+const DUMMY_HASH = "$2a$12$CwTycUXWue0Thq9StjUM0uJ8.6wYwZ1Y0y3Qh3a3o0s0y8o0o0o0O";
+const TOO_MANY = "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.";
+
 export async function login(email: string, password: string): Promise<ActionResult> {
+  const ip = await clientIp();
+  const cleanEmail = email.trim().toLowerCase();
+  // Por correo (fuerza bruta a una cuenta) y por IP (barrido de cuentas).
+  if (!rateLimit(`login:email:${cleanEmail}`, 8, 15 * 60_000) || !rateLimit(`login:ip:${ip}`, 30, 15 * 60_000)) {
+    return { error: TOO_MANY };
+  }
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   // Misma respuesta para usuario inexistente / sin contraseña / contraseña errónea.
-  const valid = user?.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
+  // Siempre se hace un bcrypt.compare (aunque el usuario no exista) para que el tiempo de respuesta no delate qué correos están registrados.
+  const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH).then((ok) => ok && !!user?.passwordHash);
   if (!user || !valid) return { error: "Correo o contraseña incorrectos" };
 
   await startSession(user.id);
@@ -35,6 +46,11 @@ export async function login(email: string, password: string): Promise<ActionResu
 }
 
 export async function register(name: string, email: string, password: string): Promise<ActionResult> {
+  if (!rateLimit(`register:ip:${await clientIp()}`, 5, 60 * 60_000)) return { error: TOO_MANY };
+  // Tras el primer usuario (dueño de la plataforma) el registro público se puede cerrar con ALLOW_REGISTRATION=false.
+  if (process.env.ALLOW_REGISTRATION === "false" && (await prisma.user.count()) > 0) {
+    return { error: "El registro está cerrado. Pide una invitación a tu administrador." };
+  }
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = name.trim() || cleanEmail.split("@")[0] || "Usuario";
   if (password.length < MIN_PASSWORD_LENGTH) {
@@ -57,6 +73,9 @@ export async function logout() {
 }
 
 export async function requestPasswordReset(email: string): Promise<ActionResult> {
+  if (!rateLimit(`reset:ip:${await clientIp()}`, 5, 60 * 60_000) || !rateLimit(`reset:email:${email.trim().toLowerCase()}`, 3, 60 * 60_000)) {
+    return { error: TOO_MANY };
+  }
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   // No revelar si el correo existe.
   if (user) {
@@ -72,6 +91,7 @@ export async function requestPasswordReset(email: string): Promise<ActionResult>
 }
 
 export async function resetPassword(token: string, password: string): Promise<ActionResult> {
+  if (!rateLimit(`resetpw:ip:${await clientIp()}`, 10, 60 * 60_000)) return { error: TOO_MANY };
   if (password.length < MIN_PASSWORD_LENGTH) {
     return { error: `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres` };
   }

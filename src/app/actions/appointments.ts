@@ -1,5 +1,6 @@
 "use server";
 
+import { assertMember, assertOwns, assertWorkspace, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
@@ -20,6 +21,10 @@ export async function createAppointmentCalendar(data: {
   meetingUrl?: string | null;
   assignedTo?: string | null;
 }) {
+  const ctx = await requireCtx();
+  assertWorkspace(ctx, data.workspaceId);
+  await assertOwns("lead", data.leadId, ctx.workspace.id);
+  await assertMember(data.assignedTo, ctx.workspace.id);
   const appointment = await prisma.appointment.create({
     data: {
       workspaceId: data.workspaceId,
@@ -53,6 +58,10 @@ export async function updateAppointmentCalendar(id: string, data: {
   leadId?: string | null;
   assignedTo?: string | null;
 }) {
+  const ctx = await requireCtx();
+  await assertOwns("appointment", id, ctx.workspace.id);
+  await assertOwns("lead", data.leadId, ctx.workspace.id);
+  await assertMember(data.assignedTo, ctx.workspace.id);
   await prisma.appointment.update({
     where: { id },
     data: {
@@ -73,6 +82,8 @@ export async function updateAppointmentCalendar(id: string, data: {
 }
 
 export async function updateApptStatus(id: string, status: ApptStatus) {
+  const ctx = await requireCtx();
+  await assertOwns("appointment", id, ctx.workspace.id);
   await prisma.appointment.update({ where: { id }, data: { status } });
   if (status === "CANCELADA") await deleteAppointmentFromGoogle(id);
   revalidatePath("/calendarios");
@@ -80,6 +91,8 @@ export async function updateApptStatus(id: string, status: ApptStatus) {
 }
 
 export async function deleteAppointment(id: string) {
+  const ctx = await requireCtx();
+  await assertOwns("appointment", id, ctx.workspace.id);
   await deleteAppointmentFromGoogle(id);
   await prisma.appointment.delete({ where: { id } });
   revalidatePath("/calendarios");

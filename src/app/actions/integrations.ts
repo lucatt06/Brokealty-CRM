@@ -1,9 +1,10 @@
 "use server";
 
+import { AuthError, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { encrypt, decrypt, maskSecret } from "@/lib/crypto";
-import { createInstance, connectInstance, fetchConnectionState, deleteInstance } from "@/lib/evolution/client";
+import { createInstance, connectInstance, fetchConnectionState, deleteInstance, setInstanceWebhook } from "@/lib/evolution/client";
 
 export type AiProvider = "OPENAI" | "ANTHROPIC";
 
@@ -28,6 +29,8 @@ export type IntegrationSummary = {
 };
 
 export async function listIntegrations(workspaceId: string): Promise<IntegrationSummary[]> {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const rows = await prisma.integration.findMany({ where: { workspaceId } });
   return rows.map((r) => {
     let maskedValue: string | null = null;
@@ -77,6 +80,9 @@ export async function listIntegrations(workspaceId: string): Promise<Integration
 // ── API Keys de IA (multi-tenant: cada workspace paga sus propios tokens) ──
 
 export async function saveAiApiKey(workspaceId: string, provider: AiProvider, apiKey: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
+  if (provider !== "OPENAI" && provider !== "ANTHROPIC") throw new AuthError("Proveedor no válido.");
   const trimmed = apiKey.trim();
   if (!trimmed) throw new Error("La API key no puede estar vacía.");
 
@@ -95,6 +101,9 @@ export async function saveAiApiKey(workspaceId: string, provider: AiProvider, ap
 }
 
 export async function removeAiApiKey(workspaceId: string, provider: AiProvider) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
+  if (provider !== "OPENAI" && provider !== "ANTHROPIC") throw new AuthError("Proveedor no válido.");
   await prisma.integration.deleteMany({ where: { workspaceId, type: provider } });
   revalidatePath("/integraciones");
 }
@@ -102,6 +111,8 @@ export async function removeAiApiKey(workspaceId: string, provider: AiProvider) 
 // ── Email (Resend) ──────────────────────────────────────────────────────
 
 export async function saveResendConfig(workspaceId: string, apiKey: string, fromEmail: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const trimmedKey = apiKey.trim();
   const trimmedFrom = fromEmail.trim();
   if (!trimmedKey) throw new Error("La API key no puede estar vacía.");
@@ -122,6 +133,8 @@ export async function saveResendConfig(workspaceId: string, apiKey: string, from
 }
 
 export async function removeResendConfig(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   await prisma.integration.deleteMany({ where: { workspaceId, type: "RESEND" } });
   revalidatePath("/integraciones");
 }
@@ -129,6 +142,8 @@ export async function removeResendConfig(workspaceId: string) {
 // ── Google Calendar ─────────────────────────────────────────────────────
 
 export async function removeGoogleCalendarConfig(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   await prisma.integration.deleteMany({ where: { workspaceId, type: "GOOGLE_CALENDAR" } });
   revalidatePath("/integraciones");
 }
@@ -136,6 +151,8 @@ export async function removeGoogleCalendarConfig(workspaceId: string) {
 // ── WhatsApp (Evolution API) ────────────────────────────────────────────
 
 export async function connectWhatsAppEvolution(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
   if (!workspace) throw new Error("Workspace no encontrado.");
 
@@ -150,6 +167,8 @@ export async function connectWhatsAppEvolution(workspaceId: string) {
   const qr = existingConfig?.instanceName
     ? await connectInstance(instanceName).catch(() => createInstance(instanceName, webhookUrl))
     : await createInstance(instanceName, webhookUrl);
+  // Reafirma el webhook (con su firma) también en instancias que ya existían.
+  if (existingConfig?.instanceName) await setInstanceWebhook(instanceName, webhookUrl);
 
   await prisma.integration.upsert({
     where: { workspaceId_type: { workspaceId, type: "WHATSAPP_EVOLUTION" } },
@@ -169,6 +188,8 @@ export async function connectWhatsAppEvolution(workspaceId: string) {
 }
 
 export async function getWhatsAppStatus(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const integration = await prisma.integration.findFirst({ where: { workspaceId, type: "WHATSAPP_EVOLUTION" } });
   if (!integration) return { connected: false, instanceName: null as string | null };
 
@@ -192,6 +213,8 @@ export async function getWhatsAppStatus(workspaceId: string) {
 }
 
 export async function disconnectWhatsAppEvolution(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const integration = await prisma.integration.findFirst({ where: { workspaceId, type: "WHATSAPP_EVOLUTION" } });
   if (!integration) return;
 

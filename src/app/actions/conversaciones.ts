@@ -1,5 +1,6 @@
 "use server";
 
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { sendOutboundWhatsApp } from "@/lib/messaging/send-outbound";
@@ -10,6 +11,8 @@ import { sendEmail } from "@/lib/resend/client";
 export type Channel = "WHATSAPP" | "WHATSAPP_PERSONAL" | "FACEBOOK" | "INSTAGRAM" | "SMS" | "EMAIL" | "LLAMADA" | "INTERNO";
 
 export async function sendMessage(conversationId: string, channel: Channel, content: string) {
+  const ctx = await requireCtx();
+  await assertOwns("conversation", conversationId, ctx.workspace.id);
   const trimmed = content.trim();
   if (!trimmed) return;
 
@@ -84,6 +87,8 @@ export async function sendMessage(conversationId: string, channel: Channel, cont
 }
 
 export async function setConversationAiHandled(conversationId: string, isAiHandled: boolean) {
+  const ctx = await requireCtx();
+  await assertOwns("conversation", conversationId, ctx.workspace.id);
   await prisma.conversation.update({ where: { id: conversationId }, data: { isAiHandled } });
   // El toggle manual es la señal más fuerte — cancela cualquier reactivación automática
   // pendiente (Stop Bot / Human Handover) para que no le pise la decisión del inmobiliaria.
@@ -92,6 +97,8 @@ export async function setConversationAiHandled(conversationId: string, isAiHandl
 }
 
 export async function markConversationRead(conversationId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("conversation", conversationId, ctx.workspace.id);
   await prisma.message.updateMany({
     where: {
       conversationId,
@@ -105,6 +112,8 @@ export async function markConversationRead(conversationId: string) {
 }
 
 export async function sendVoiceNote(conversationId: string, channel: Channel, mediaUrl: string) {
+  const ctx = await requireCtx();
+  await assertOwns("conversation", conversationId, ctx.workspace.id);
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
     select: { workspaceId: true, leadId: true },

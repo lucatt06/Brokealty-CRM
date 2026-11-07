@@ -1,5 +1,6 @@
 "use server";
 
+import { assertOwns, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -8,6 +9,8 @@ type JsonObj = Record<string, unknown>;
 type ToolCategory = "PLATFORM" | "EXTRACTION" | "TRANSFER" | "ADD_TAG" | "REMOVE_TAG" | "CUSTOM" | "WORKFLOWS";
 
 export async function saveActionConfig(agentId: string, actionKey: string, config: JsonObj) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", agentId, ctx.workspace.id);
   const agent = await prisma.aIAgent.findUnique({ where: { id: agentId }, select: { actionsConfig: true, actions: true } });
   const currentConfig = (agent?.actionsConfig as JsonObj) ?? {};
   const actions = agent?.actions ?? [];
@@ -24,6 +27,8 @@ export async function saveActionConfig(agentId: string, actionKey: string, confi
 }
 
 export async function removeActionConfig(agentId: string, actionKey: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", agentId, ctx.workspace.id);
   const agent = await prisma.aIAgent.findUnique({ where: { id: agentId }, select: { actionsConfig: true, actions: true } });
   const currentConfig = { ...((agent?.actionsConfig as JsonObj) ?? {}) };
   delete currentConfig[actionKey];
@@ -40,6 +45,8 @@ export async function removeActionConfig(agentId: string, actionKey: string) {
 }
 
 export async function updateConversationSummary(agentId: string, enabled: boolean, config: JsonObj) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", agentId, ctx.workspace.id);
   await prisma.aIAgent.update({
     where: { id: agentId },
     data: { conversationSummaryEnabled: enabled, conversationSummaryConfig: config as Prisma.InputJsonValue },
@@ -48,6 +55,9 @@ export async function updateConversationSummary(agentId: string, enabled: boolea
 }
 
 export async function setAssignedTools(agentId: string, toolIds: string[]) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", agentId, ctx.workspace.id);
+  await assertOwns("agentTool", toolIds, ctx.workspace.id);
   await prisma.aIAgent.update({ where: { id: agentId }, data: { assignedToolIds: toolIds } });
   revalidatePath("/agentes");
 }
@@ -66,11 +76,13 @@ const BUILT_IN_TOOLS: Omit<Prisma.AgentToolCreateManyInput, "workspaceId">[] = [
   { key: "update_appointment_details", name: "Update Appointment Details", description: "Changes or reschedules an appointment", category: "PLATFORM", method: "POST", examplePrompt: "Can we move it to Friday?", isBuiltIn: true },
   { key: "update_user_details", name: "Update User Details", description: "Saves verified contact info to your CRM", category: "PLATFORM", method: "POST", examplePrompt: "My email is sarah@example.com.", isBuiltIn: true },
   { key: "remove_tag", name: "Remove Tag", description: "Removes a tag from the contact's record", category: "REMOVE_TAG", method: "POST", examplePrompt: "This lead is no longer interested.", isBuiltIn: true },
-  { key: "search_inventory", name: "Search Inventory", description: "Busca propiedades disponibles en el catálogo por tipo, zona, habitaciones o precio", category: "PLATFORM", method: "POST", examplePrompt: "¿Qué Toyota Corolla tienen disponibles?", isBuiltIn: true },
-  { key: "send_property_photos", name: "Send Property Photos", description: "Envía las fotos de una propiedad del catálogo al contacto", category: "PLATFORM", method: "POST", examplePrompt: "¿Me puedes mandar fotos de ese carro?", isBuiltIn: true },
+  { key: "search_inventory", name: "Search Inventory", description: "Busca propiedades disponibles en el catálogo por tipo, zona, habitaciones o precio", category: "PLATFORM", method: "POST", examplePrompt: "¿Qué apartamentos de 3 habitaciones tienen en Naco?", isBuiltIn: true },
+  { key: "send_property_photos", name: "Send Property Photos", description: "Envía las fotos de una propiedad del catálogo al contacto", category: "PLATFORM", method: "POST", examplePrompt: "¿Me puedes mandar fotos de esa propiedad?", isBuiltIn: true },
 ];
 
 export async function ensureBuiltInTools(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const existing = await prisma.agentTool.findMany({ where: { workspaceId, isBuiltIn: true }, select: { key: true } });
   const existingKeys = new Set(existing.map((t) => t.key));
   const missing = BUILT_IN_TOOLS.filter((t) => !existingKeys.has(t.key));
@@ -85,6 +97,8 @@ export async function ensureBuiltInTools(workspaceId: string) {
 export async function createCustomTool(workspaceId: string, data: {
   name: string; description: string; category: ToolCategory; examplePrompt?: string | null;
 }) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const key = `custom_${data.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40)}_${Date.now()}`;
   const tool = await prisma.agentTool.create({
     data: {
@@ -102,6 +116,8 @@ export async function createCustomTool(workspaceId: string, data: {
 }
 
 export async function deleteCustomTool(id: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agentTool", id, ctx.workspace.id);
   await prisma.agentTool.delete({ where: { id } });
   revalidatePath("/agentes");
 }

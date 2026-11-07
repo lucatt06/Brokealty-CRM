@@ -1,3 +1,4 @@
+import { webhookHeadersFor } from "@/lib/evolution/webhook-auth";
 const BASE_URL = process.env.EVOLUTION_API_URL ?? "";
 const API_KEY = process.env.EVOLUTION_API_KEY ?? "";
 
@@ -30,7 +31,7 @@ export async function setInstanceWebhook(instanceName: string, webhookUrl: strin
   return evolutionFetch(`/webhook/set/${instanceName}`, {
     method: "POST",
     body: JSON.stringify({
-      webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"] },
+      webhook: { enabled: true, url: webhookUrl, headers: webhookHeadersFor(instanceName), events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"] },
     }),
   });
 }

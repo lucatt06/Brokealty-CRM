@@ -1,11 +1,13 @@
 "use server";
 
+import { AuthError, assertOwns, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
 import { AI_MODELS } from "@/lib/ai-models";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { getWorkspaceAiKey } from "@/lib/integrations/ai-keys";
+import { getFile } from "@/lib/storage/blob";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type Attachment = { url: string; kind: "image" | "pdf" };
@@ -13,6 +15,8 @@ type Result = { reply: string; error?: undefined } | { reply?: undefined; error:
 type TranscribeResult = { text: string; error?: undefined } | { text?: undefined; error: string };
 
 export async function testAgentChat(agentId: string, history: ChatMessage[], message: string, attachment?: Attachment | null): Promise<Result> {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", agentId, ctx.workspace.id);
   const agent = await prisma.aIAgent.findUnique({
     where: { id: agentId },
     include: { workspace: { select: { name: true } } },
@@ -61,14 +65,20 @@ export async function testAgentChat(agentId: string, history: ChatMessage[], mes
 }
 
 export async function transcribeVoiceNote(audioUrl: string): Promise<TranscribeResult> {
+  await requireAdminCtx();
   if (!process.env.OPENAI_API_KEY) {
     return { error: "Configura OPENAI_API_KEY en .env.local para transcribir notas de voz." };
   }
   try {
-    const audioRes = await fetch(audioUrl);
-    if (!audioRes.ok) return { error: "No se pudo descargar el audio para transcribir." };
-    const blob = await audioRes.blob();
-    const file = new File([blob], "nota-voz.webm", { type: blob.type || "audio/webm" });
+    // Solo audios propios (subidos a /api/files/voice-notes/…): se leen directo del almacenamiento,
+    // nunca con un fetch a una URL arbitraria del cliente (SSRF hacia la red interna).
+    const key = new URL(audioUrl, "http://local").pathname.replace(/^\/api\/files\//, "");
+    if (!key.startsWith("voice-notes/") || key.includes("..")) return { error: "Audio no válido." };
+    const stored = await getFile(key);
+    if (!stored.body) return { error: "No se pudo leer el audio para transcribir." };
+    const bytes = await stored.body.transformToByteArray();
+    const type = stored.contentType || "audio/webm";
+    const file = new File([Buffer.from(bytes)], "nota-voz.webm", { type });
 
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const transcription = await client.audio.transcriptions.create({ file, model: "whisper-1" });

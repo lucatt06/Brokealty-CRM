@@ -1,5 +1,6 @@
 "use server";
 
+import { AuthError, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
@@ -17,6 +18,8 @@ export async function createCommissionRule(
   workspaceId: string,
   data: { name: string; calcType: "PERCENT_OF_VALUE" | "FIXED_AMOUNT"; percent?: number | null; fixedAmount?: number | null }
 ) {
+  const ctx0 = await requireAdminCtx();
+  assertWorkspace(ctx0, workspaceId);
   await requireAdmin();
   await prisma.commissionRule.create({
     data: {
@@ -34,6 +37,8 @@ export async function updateCommissionRule(
   id: string,
   data: { name: string; calcType: "PERCENT_OF_VALUE" | "FIXED_AMOUNT"; percent?: number | null; fixedAmount?: number | null }
 ) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("commissionRule", id, ctx0.workspace.id);
   await requireAdmin();
   await prisma.commissionRule.update({
     where: { id },
@@ -48,12 +53,16 @@ export async function updateCommissionRule(
 }
 
 export async function toggleCommissionRuleActive(id: string, isActive: boolean) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("commissionRule", id, ctx0.workspace.id);
   await requireAdmin();
   await prisma.commissionRule.update({ where: { id }, data: { isActive } });
   revalidatePath("/comisiones");
 }
 
 export async function deleteCommissionRule(id: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("commissionRule", id, ctx0.workspace.id);
   await requireAdmin();
   await prisma.commissionRule.delete({ where: { id } });
   revalidatePath("/comisiones");
@@ -61,6 +70,8 @@ export async function deleteCommissionRule(id: string) {
 
 // ── Comisiones ───────────────────────────────────────────
 export async function approveCommission(commissionId: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("commission", commissionId, ctx0.workspace.id);
   const ctx = await requireAdmin();
   await prisma.commission.update({
     where: { id: commissionId },
@@ -70,6 +81,8 @@ export async function approveCommission(commissionId: string) {
 }
 
 export async function rejectCommission(commissionId: string, reason: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("commission", commissionId, ctx0.workspace.id);
   const ctx = await requireAdmin();
   await prisma.commission.update({
     where: { id: commissionId },
@@ -79,6 +92,8 @@ export async function rejectCommission(commissionId: string, reason: string) {
 }
 
 export async function markCommissionPaid(commissionId: string) {
+  const ctx0 = await requireAdminCtx();
+  await assertOwns("commission", commissionId, ctx0.workspace.id);
   await requireAdmin();
   await prisma.commission.update({
     where: { id: commissionId },

@@ -1,5 +1,6 @@
 "use server";
 
+import { assertOwns, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -7,6 +8,8 @@ type AiAgentStatus = "OFF" | "SUGGESTIVE" | "AUTO_PILOT";
 type AgentChannel = "SMS" | "INSTAGRAM" | "FACEBOOK" | "CHAT_WIDGET" | "LIVE_CHAT" | "WHATSAPP";
 
 export async function createAgent(workspaceId: string, name: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const count = await prisma.aIAgent.count({ where: { workspaceId } });
   const agent = await prisma.aIAgent.create({
     data: {
@@ -32,6 +35,8 @@ export async function updateAgentSettings(id: string, data: {
   sleepOnManualMessage: boolean;
   sleepOnWorkflowMessage: boolean;
 }) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", id, ctx.workspace.id);
   await prisma.aIAgent.update({
     where: { id },
     data: {
@@ -58,6 +63,8 @@ export async function updateAgentGoals(id: string, data: {
   additionalInfo?: string | null;
   actions: string[];
 }) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", id, ctx.workspace.id);
   await prisma.aIAgent.update({
     where: { id },
     data: {
@@ -72,6 +79,9 @@ export async function updateAgentGoals(id: string, data: {
 }
 
 export async function setPrimaryAgent(id: string, workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
+  await assertOwns("agent", id, workspaceId);
   await prisma.$transaction([
     prisma.aIAgent.updateMany({ where: { workspaceId }, data: { isPrimary: false } }),
     prisma.aIAgent.update({ where: { id }, data: { isPrimary: true } }),
@@ -80,11 +90,15 @@ export async function setPrimaryAgent(id: string, workspaceId: string) {
 }
 
 export async function updateAgentStatus(id: string, status: AiAgentStatus) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", id, ctx.workspace.id);
   await prisma.aIAgent.update({ where: { id }, data: { status } });
   revalidatePath("/agentes");
 }
 
 export async function duplicateAgent(id: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", id, ctx.workspace.id);
   const original = await prisma.aIAgent.findUnique({ where: { id } });
   if (!original) return null;
   const clone = await prisma.aIAgent.create({
@@ -113,6 +127,8 @@ export async function duplicateAgent(id: string) {
 }
 
 export async function deleteAgent(id: string) {
+  const ctx = await requireAdminCtx();
+  await assertOwns("agent", id, ctx.workspace.id);
   await prisma.aIAgent.delete({ where: { id } });
   revalidatePath("/agentes");
 }

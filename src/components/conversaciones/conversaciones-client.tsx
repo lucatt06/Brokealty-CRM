@@ -20,7 +20,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { updateDealStage, updateDealStatus, createDeal } from "@/app/actions/deals";
+import { updateDealStage, updateDealStatus, createDeal, closeDeal } from "@/app/actions/deals";
 import { ModalShell } from "@/components/agentes/action-modals";
 import { registerPayment, deletePayment } from "@/app/actions/payments";
 import { addNote, createTask, toggleTask, deleteTask, createAppointment, updateAppointmentStatus } from "@/app/actions/leads";
@@ -197,9 +197,18 @@ function DealTrack({ deal, stages, index }: { deal: Deal; stages: Stage[]; index
   async function setStatus(status: "WON" | "LOST") {
     const next = deal.status === status ? "OPEN" : status;
     setPending(next);
-    await updateDealStatus(deal.id, next as "OPEN" | "WON" | "LOST");
-    router.refresh();
-    setPending(null);
+    try {
+      if (next === "WON") {
+        // Ganar un negocio pasa por la Orden de Venta (debida diligencia, autorización, comisión).
+        const result = await closeDeal(deal.id, "WON");
+        if (result.salesOrderId) { router.push(`/ordenes-venta/${result.salesOrderId}`); return; }
+      } else {
+        await updateDealStatus(deal.id, next as "OPEN" | "LOST");
+      }
+      router.refresh();
+    } finally {
+      setPending(null);
+    }
   }
 
   return (

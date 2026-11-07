@@ -1,5 +1,6 @@
 "use server";
 
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
@@ -17,6 +18,9 @@ type CreateOperationDocumentMeta = {
 export async function createOperationDocument(formData: FormData, meta: CreateOperationDocumentMeta) {
   const ctx = await getActiveWorkspace();
   if (!ctx) throw new Error("Sesión no válida.");
+  assertWorkspace(ctx, meta.workspaceId);
+  await assertOwns("salesOrder", meta.salesOrderId, ctx.workspace.id);
+  await assertOwns("lead", meta.leadId, ctx.workspace.id);
 
   const file = formData.get("file");
   const result = await uploadOperationDocumentFile(formData);
@@ -36,6 +40,8 @@ export async function createOperationDocument(formData: FormData, meta: CreateOp
 }
 
 export async function deleteOperationDocument(id: string) {
+  const ctx = await requireCtx();
+  await assertOwns("operationDocument", id, ctx.workspace.id);
   const doc = await prisma.operationDocument.delete({ where: { id }, select: { salesOrderId: true } });
   if (doc.salesOrderId) revalidatePath(`/ordenes-venta/${doc.salesOrderId}`);
   revalidatePath("/documentos");

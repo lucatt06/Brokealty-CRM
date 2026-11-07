@@ -1,5 +1,6 @@
 "use server";
 
+import { assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
@@ -21,6 +22,8 @@ export async function completeWhatsAppCloudSignup(
   workspaceId: string,
   params: { code: string; phoneNumberId: string; wabaId: string }
 ) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   const { code, phoneNumberId, wabaId } = params;
   if (!code || !phoneNumberId || !wabaId) throw new Error("Faltan datos del popup de Meta para completar la conexión.");
 
@@ -70,6 +73,8 @@ export async function completeWhatsAppCloudSignup(
 }
 
 export async function removeWhatsAppCloudConfig(workspaceId: string) {
+  const ctx = await requireAdminCtx();
+  assertWorkspace(ctx, workspaceId);
   await prisma.integration.deleteMany({ where: { workspaceId, type: "WHATSAPP_CLOUD" } });
   revalidatePath("/integraciones");
 }

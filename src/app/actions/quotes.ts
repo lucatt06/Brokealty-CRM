@@ -1,5 +1,6 @@
 "use server";
 
+import { AuthError, assertMember, assertOwns, assertWorkspace, requireAdminCtx, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
@@ -47,6 +48,12 @@ type CreateQuoteInput = {
 };
 
 export async function createQuote(workspaceId: string, data: CreateQuoteInput) {
+  const ctx0 = await requireCtx();
+  assertWorkspace(ctx0, workspaceId);
+  await assertOwns("lead", data.leadId, workspaceId);
+  await assertOwns("property", data.propertyId, workspaceId);
+  if (data.currency !== "DOP" && data.currency !== "USD") throw new AuthError("Moneda no válida.");
+  if (!Number.isFinite(data.offeredPrice) || data.offeredPrice <= 0) throw new AuthError("Precio no válido.");
   const ctx = await getActiveWorkspace();
   if (!ctx) throw new Error("Sesión no válida.");
 
@@ -79,6 +86,8 @@ export async function createQuote(workspaceId: string, data: CreateQuoteInput) {
 }
 
 export async function sendQuote(quoteId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("quote", quoteId, ctx.workspace.id);
   const quote = await prisma.quote.update({
     where: { id: quoteId },
     data: { status: "ENVIADA", sentAt: new Date() },
@@ -91,6 +100,8 @@ export async function sendQuote(quoteId: string) {
 }
 
 export async function acceptQuote(quoteId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("quote", quoteId, ctx.workspace.id);
   const quote = await prisma.quote.update({
     where: { id: quoteId },
     data: { status: "ACEPTADA", respondedAt: new Date() },
@@ -103,6 +114,8 @@ export async function acceptQuote(quoteId: string) {
 }
 
 export async function rejectQuote(quoteId: string) {
+  const ctx = await requireCtx();
+  await assertOwns("quote", quoteId, ctx.workspace.id);
   await prisma.quote.update({ where: { id: quoteId }, data: { status: "RECHAZADA", respondedAt: new Date() } });
   revalidatePath("/cotizaciones");
 }
@@ -112,8 +125,9 @@ export async function rejectQuote(quoteId: string) {
  * solo se puede hacer una vez (Documento 7, sección 4.3).
  */
 export async function convertQuoteToSalesOrder(quoteId: string, dealId: string) {
-  const ctx = await getActiveWorkspace();
-  if (!ctx) throw new Error("Sesión no válida.");
+  const ctx = await requireCtx();
+  await assertOwns("quote", quoteId, ctx.workspace.id);
+  await assertOwns("deal", dealId, ctx.workspace.id);
 
   const quote = await prisma.quote.findUnique({ where: { id: quoteId } });
   if (!quote) throw new Error("Cotización no encontrada.");
