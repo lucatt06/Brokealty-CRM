@@ -22,7 +22,8 @@ function s3() {
     client = new S3Client({
       endpoint,
       region: process.env.AWS_DEFAULT_REGION ?? "auto",
-      forcePathStyle: true,
+      // Los Buckets de Railway usan URLs estilo virtual-host (bucket.endpoint).
+      forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true",
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
