@@ -1,13 +1,5 @@
 import { prisma } from "@/lib/prisma";
-
-const DEFAULT_STAGES = [
-  { name: "Nuevo", order: 0, color: "#3b82f6", probability: 10 },
-  { name: "Contactado", order: 1, color: "#8b5cf6", probability: 25 },
-  { name: "Calificado", order: 2, color: "#f59e0b", probability: 40 },
-  { name: "Visita Agendada", order: 3, color: "#f97316", probability: 60 },
-  { name: "Visitó Propiedad", order: 4, color: "#ec4899", probability: 75 },
-  { name: "En Negociación", order: 5, color: "#ef4444", probability: 85 },
-];
+import { defaultStageRows } from "@/lib/pipeline/default-stages";
 
 const DIACRITICS_RANGE_START = 0x0300;
 const DIACRITICS_RANGE_END = 0x036f;
@@ -65,7 +57,7 @@ export async function createUserWithWorkspace(params: { email: string; name: str
               timezone: "America/Santo_Domingo",
               plan: "STARTER",
               pipelines: {
-                create: { name: "Pipeline Principal", isDefault: true, order: 0, stages: { create: DEFAULT_STAGES } },
+                create: { name: "Pipeline Principal", isDefault: true, order: 0, stages: { create: defaultStageRows() } },
               },
             },
           },

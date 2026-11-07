@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ENTRY_STAGE_NAME } from "@/lib/pipeline/default-stages";
 import { prisma } from "@/lib/prisma";
 import { runAgentTurn } from "@/lib/agent/orchestrator";
 import { getMediaUrl, downloadMedia, sendWhatsAppCloudReply } from "@/lib/whatsapp-cloud/graph-client";
@@ -135,7 +136,7 @@ async function handleInboundMessage(workspaceId: string, message: CloudMessage, 
     const entryStage = await getDefaultPipelineEntryStage(workspaceId);
     lead = await prisma.$transaction(async (tx) => {
       const created = await tx.lead.create({
-        data: { workspaceId, firstName: pushName?.trim() || phone, phone, source: "WHATSAPP", stage: "Nuevo", score: 0 },
+        data: { workspaceId, firstName: pushName?.trim() || phone, phone, source: "WHATSAPP", stage: ENTRY_STAGE_NAME, score: 0 },
       });
       if (entryStage) {
         await tx.deal.create({

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ENTRY_STAGE_NAME } from "@/lib/pipeline/default-stages";
 import { prisma } from "@/lib/prisma";
 import { runAgentTurn } from "@/lib/agent/orchestrator";
 import { sendWhatsAppReply, getBase64FromMediaMessage } from "@/lib/evolution/client";
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
           firstName: isFromMe ? phone : (data.pushName?.trim() || phone),
           phone,
           source: "WHATSAPP",
-          stage: "Nuevo",
+          stage: ENTRY_STAGE_NAME,
           score: 0,
         },
       });

@@ -1,5 +1,6 @@
 "use client";
 
+import { STAGE_FILTER_OPTIONS, stageBadgeClass } from "@/lib/pipeline/default-stages";
 import { PROPERTY_TYPE_LABELS, desiredSummary } from "@/lib/properties/labels";
 import type { ListingType, PropertyType } from "@prisma/client";
 import { useState, useMemo, useTransition } from "react";
@@ -35,19 +36,13 @@ const SOURCE_COLORS: Record<string, string> = {
   MANUAL: "bg-gray-100 text-gray-600", LLAMADA: "bg-orange-100 text-orange-700",
   EMAIL: "bg-cyan-100 text-cyan-700", WALK_IN: "bg-yellow-100 text-yellow-700",
 };
-const STAGE_COLORS: Record<string, string> = {
-  "Nuevo": "bg-blue-100 text-blue-700", "Contactado": "bg-purple-100 text-purple-700",
-  "Calificado": "bg-amber-100 text-amber-700", "Visita Agendada": "bg-orange-100 text-orange-700",
-  "Visitó Propiedad": "bg-pink-100 text-pink-700", "En Negociación": "bg-red-100 text-red-700",
-  "Cerrado": "bg-green-100 text-green-700",
-};
 const SCORE_RANGES = [
   { label: "Todos", min: 0, max: 100 },
   { label: "Alto (80-100)", min: 80, max: 100 },
   { label: "Medio (50-79)", min: 50, max: 79 },
   { label: "Bajo (0-49)", min: 0, max: 49 },
 ];
-const STAGES = ["Todos", "Nuevo", "Contactado", "Calificado", "Visita Agendada", "Visitó Propiedad", "En Negociación", "Cerrado"];
+const STAGES = STAGE_FILTER_OPTIONS;
 
 function scoreColor(s: number) {
   if (s >= 80) return "text-green-600";
@@ -306,7 +301,7 @@ export function LeadsClient({ leads: initialLeads, users, workspaceId }: LeadsCl
                   </td>
                   <td className="px-4 py-3">
                     {lead.stage
-                      ? <Badge className={cn("text-[11px] font-medium border-0", STAGE_COLORS[lead.stage] ?? "bg-gray-100 text-gray-600")}>{lead.stage}</Badge>
+                      ? <Badge className={cn("text-[11px] font-medium border-0", stageBadgeClass(lead.stage))}>{lead.stage}</Badge>
                       : "—"}
                   </td>
                   <td className="px-4 py-3">

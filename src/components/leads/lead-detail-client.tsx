@@ -1,5 +1,6 @@
 "use client";
 
+import { stageBadgeClass } from "@/lib/pipeline/default-stages";
 import { desiredSummary } from "@/lib/properties/labels";
 import type { ListingType, PropertyType } from "@prisma/client";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -33,12 +34,6 @@ const SOURCE_LABELS: Record<string, string> = {
   WHATSAPP: "WhatsApp", FACEBOOK: "Facebook", INSTAGRAM: "Instagram",
   TIKTOK: "TikTok", WEB: "Web", REFERIDO: "Referido",
   MANUAL: "Manual", LLAMADA: "Llamada", EMAIL: "Email", WALK_IN: "Walk-in",
-};
-const STAGE_COLORS: Record<string, string> = {
-  "Nuevo": "bg-blue-100 text-blue-700", "Contactado": "bg-purple-100 text-purple-700",
-  "Calificado": "bg-amber-100 text-amber-700", "Visita Agendada": "bg-orange-100 text-orange-700",
-  "Visitó Propiedad": "bg-pink-100 text-pink-700", "En Negociación": "bg-red-100 text-red-700",
-  "Cerrado": "bg-green-100 text-green-700",
 };
 
 function scoreColor(s: number) {
@@ -116,7 +111,7 @@ export function LeadDetailClient({ lead, users, stages, workspaceId, canManage }
         </Avatar>
         <h1 className="text-[14px] font-semibold text-foreground truncate">{fullName}</h1>
         {lead.stage && (
-          <Badge className={cn("text-[11px] border-0 font-medium shrink-0", STAGE_COLORS[lead.stage] ?? "bg-gray-100 text-gray-600")}>
+          <Badge className={cn("text-[11px] border-0 font-medium shrink-0", stageBadgeClass(lead.stage))}>
             {lead.stage}
           </Badge>
         )}

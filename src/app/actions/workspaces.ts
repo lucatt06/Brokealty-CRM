@@ -1,5 +1,6 @@
 "use server";
 
+import { defaultStageRows } from "@/lib/pipeline/default-stages";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -42,15 +43,6 @@ async function uniqueSlug(base: string) {
   }
   return slug;
 }
-
-const DEFAULT_STAGES = [
-  { name: "Nuevo", order: 0, color: "#3b82f6", probability: 10 },
-  { name: "Contactado", order: 1, color: "#8b5cf6", probability: 25 },
-  { name: "Calificado", order: 2, color: "#f59e0b", probability: 40 },
-  { name: "Visita Agendada", order: 3, color: "#f97316", probability: 60 },
-  { name: "Visitó Propiedad", order: 4, color: "#ec4899", probability: 75 },
-  { name: "En Negociación", order: 5, color: "#ef4444", probability: 85 },
-];
 
 // ── Cambiar de tenant (solo Super Admin) ────────────────────────
 
@@ -95,7 +87,7 @@ export async function createTenant(name: string) {
           name: "Pipeline Principal",
           isDefault: true,
           order: 0,
-          stages: { create: DEFAULT_STAGES },
+          stages: { create: defaultStageRows() },
         },
       },
     },
@@ -165,7 +157,7 @@ export async function duplicateTenant(sourceWorkspaceId: string, newName: string
     }
     if (source.pipelines.length === 0) {
       await tx.pipeline.create({
-        data: { workspaceId: newWorkspace.id, name: "Pipeline Principal", isDefault: true, order: 0, stages: { create: DEFAULT_STAGES } },
+        data: { workspaceId: newWorkspace.id, name: "Pipeline Principal", isDefault: true, order: 0, stages: { create: defaultStageRows() } },
       });
     }
 

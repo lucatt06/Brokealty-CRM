@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ENTRY_STAGE_NAME } from "@/lib/pipeline/default-stages";
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
         budgetMin: body.budgetMin ? Number(body.budgetMin) : null,
         budgetMax: body.budgetMax ? Number(body.budgetMax) : null,
         budgetCurrency: body.budgetCurrency === "USD" ? "USD" : "DOP",
-        stage: "Nuevo",
+        stage: ENTRY_STAGE_NAME,
         score: 0,
       },
       include: { assignedUser: { select: { id: true, name: true } } },
