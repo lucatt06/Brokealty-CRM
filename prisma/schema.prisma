@@ -1,0 +1,1647 @@
+// Autónomo — CRM para Dealers
+// Stack: Supabase (PostgreSQL) + Prisma ORM
+// Arquitectura: Multi-tenant con workspaceId en cada tabla sensible
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// WORKSPACE (Tenant)
+// ─────────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  plan      Plan     @default(STARTER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Configuración
+  currency        String  @default("DOP")
+  timezone        String  @default("America/Santo_Domingo")
+  whatsappNumber  String?
+  facebookPageId  String?
+  instagramHandle String?
+
+  // Operaciones (Fase 2B) — umbrales de riesgo DDC, nunca hardcodeados (Documento 7, sección 3.4)
+  ddcHighRiskAmount          Float?
+  ddcCashPaymentThreshold    Float?
+  requiredPostSaleProcedures ProcedureType[] @default([])
+
+  // Relations
+  users              WorkspaceUser[]
+  leads              Lead[]
+  vehicles           Vehicle[]
+  conversations      Conversation[]
+  pipelines          Pipeline[]
+  tasks              Task[]
+  campaigns          Campaign[]
+  agents             AIAgent[]
+  agentTools         AgentTool[]
+  knowledgeBases     KnowledgeBase[]
+  automations        Automation[]
+  integrations       Integration[]
+  appointments       Appointment[]
+  notifications      Notification[]
+  tags               Tag[]
+  aiUsageLogs        AiUsageLog[]
+  payments           Payment[]
+  scheduledTasks     ScheduledTask[]
+  commissionRules    CommissionRule[]
+  commissions        Commission[]
+  conduces           Conduce[]
+  websiteConfig      WebsiteConfig?
+  dueDiligences      CustomerDueDiligence[]
+  quotes             Quote[]
+  salesOrders        SalesOrder[]
+  authorizationRules AuthorizationRule[]
+  contractTemplates  ContractTemplate[]
+  operationDocuments OperationDocument[]
+  documentSequences  DocumentSequence[]
+
+  // Contabilidad
+
+  @@map("workspaces")
+}
+
+enum Plan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// ─────────────────────────────────────────────
+// USUARIOS
+// ─────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  avatarUrl String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Hash bcrypt. Null mientras una invitación está pendiente de aceptar.
+  passwordHash String?
+
+  passwordResetTokens PasswordResetToken[]
+
+  workspaces              WorkspaceUser[]
+  assignedLeads           Lead[]                 @relation("AssignedLeads")
+  assignedDeals           Deal[]                 @relation("AssignedDeals")
+  tasks                   Task[]                 @relation("AssignedTasks")
+  messages                Message[]
+  activities              Activity[]
+  notifications           Notification[]
+  commissionsEarned       Commission[]           @relation("CommissionEarner")
+  commissionsApproved     Commission[]           @relation("CommissionApprover")
+  authorizedConduces      Conduce[]              @relation("ConduceAuthorizer")
+  vehiclesSold            Vehicle[]              @relation("VehicleSoldBy")
+  dueDiligencesReviewed   CustomerDueDiligence[] @relation("DdcReviewer")
+  quotesCreated           Quote[]
+  salesOrdersSold         SalesOrder[]           @relation("SalesOrderSeller")
+  authorizationsRequested SalesAuthorization[]   @relation("AuthorizationRequester")
+  authorizationsDecided   SalesAuthorization[]   @relation("AuthorizationDecider")
+  contractsGenerated      Contract[]
+  operationDocsUploaded   OperationDocument[]
+  proceduresAssigned      PostSaleProcedure[]    @relation("ProcedureAssignee")
+
+  // Contabilidad
+
+  @@map("users")
+}
+
+model WorkspaceUser {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role     @default(VENDEDOR)
+  isActive    Boolean  @default(true)
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_users")
+}
+
+enum Role {
+  SUPER_ADMIN // Lucas — acceso cross-workspace
+  ADMIN_DEALER // Acceso completo al workspace
+  VENDEDOR // Solo ve sus propios leads
+}
+
+// ─────────────────────────────────────────────
+// VEHÍCULOS (Inventario)
+// ─────────────────────────────────────────────
+
+model Vehicle {
+  id          String        @id @default(cuid())
+  workspaceId String
+  sku         String?       @unique
+  status      VehicleStatus @default(DISPONIBLE)
+
+  // Info básica
+  make         String
+  model        String
+  year         Int
+  trim         String?
+  color        String?
+  colorHex     String?
+  vin          String?      @unique
+  mileage      Int?         @default(0)
+  transmission Transmission @default(AUTOMATICO)
+  fuelType     FuelType     @default(GASOLINA)
+  bodyType     BodyType?
+  engineCC     Int?
+  doors        Int?         @default(4)
+
+  // Precios
+  priceDOP     Float?
+  priceUSD     Float?
+  costDOP      Float?
+  minimumPrice Float? // precio mínimo negociable — nunca sale al público, dispara autorización si se vende por debajo (Fase 2B)
+
+  // Multimedia
+  photos   VehiclePhoto[]
+  videoUrl String?
+
+  // Inventario
+  lotLocation  String?
+  daysInLot    Int       @default(0)
+  arrivalDate  DateTime?
+  soldDate     DateTime?
+  soldToLeadId String?
+  soldByUserId String?
+
+  // Descripción / extras
+  description String?
+  features    String[] @default([])
+  tags        Tag[]    @relation("VehicleTags")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads        Lead[]                @relation("InterestedVehicle")
+  deals        Deal[]
+  priceHistory VehiclePriceHistory[]
+  conduces     Conduce[]
+  activities   Activity[]
+  soldToLead   Lead?                 @relation("VehicleSoldTo", fields: [soldToLeadId], references: [id])
+  soldByUser   User?                 @relation("VehicleSoldBy", fields: [soldByUserId], references: [id])
+  quotes       Quote[]
+  salesOrders  SalesOrder[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, make, model])
+  @@map("vehicles")
+}
+
+model VehiclePhoto {
+  id        String  @id @default(cuid())
+  vehicleId String
+  url       String
+  isPrimary Boolean @default(false)
+  order     Int     @default(0)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_photos")
+}
+
+model VehiclePriceHistory {
+  id        String   @id @default(cuid())
+  vehicleId String
+  priceDOP  Float?
+  priceUSD  Float?
+  note      String?
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, createdAt])
+  @@map("vehicle_price_history")
+}
+
+enum VehicleStatus {
+  DISPONIBLE
+  RESERVADO
+  VENDIDO
+  EN_PREPARACION
+  FUERA_DE_INVENTARIO
+}
+
+enum Transmission {
+  AUTOMATICO
+  MANUAL
+  CVT
+  SEMI_AUTO
+}
+
+enum FuelType {
+  GASOLINA
+  DIESEL
+  HIBRIDO
+  ELECTRICO
+  GAS
+}
+
+enum BodyType {
+  SEDAN
+  SUV
+  PICKUP
+  HATCHBACK
+  COUPE
+  VAN
+  MINIVAN
+  CONVERTIBLE
+  WAGON
+}
+
+// ─────────────────────────────────────────────
+// LEADS
+// ─────────────────────────────────────────────
+
+model Lead {
+  id          String  @id @default(cuid())
+  workspaceId String
+  assignedTo  String?
+
+  // Contacto
+  firstName    String
+  lastName     String?
+  email        String?
+  phone        String
+  whatsapp     String?
+  source       LeadSource @default(MANUAL)
+  sourceDetail String?
+
+  // Scoring IA
+  score          Int       @default(0)
+  scoreUpdatedAt DateTime?
+
+  // Estado en pipeline
+  stage      String?
+  pipelineId String?
+
+  // Interés
+  interestedVehicleId String?
+  budgetMin           Float?
+  budgetMax           Float?
+  budgetCurrency      String  @default("DOP")
+
+  // Match inverso
+  desiredMake  String?
+  desiredModel String?
+  desiredYear  Int?
+  desiredColor String?
+
+  // Metadata
+  isActive    Boolean   @default(true)
+  tags        Tag[]     @relation("LeadTags")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastContact DateTime?
+
+  workspace          Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedUser       User?                  @relation("AssignedLeads", fields: [assignedTo], references: [id])
+  interestedVehicle  Vehicle?               @relation("InterestedVehicle", fields: [interestedVehicleId], references: [id])
+  pipeline           Pipeline?              @relation(fields: [pipelineId], references: [id])
+  conversations      Conversation[]
+  deals              Deal[]
+  tasks              Task[]
+  appointments       Appointment[]
+  activities         Activity[]
+  notifications      Notification[]
+  conduces           Conduce[]
+  dueDiligences      CustomerDueDiligence[]
+  quotes             Quote[]
+  salesOrders        SalesOrder[]
+  vehiclesBought     Vehicle[]              @relation("VehicleSoldTo")
+  operationDocuments OperationDocument[]
+
+  @@index([workspaceId, stage])
+  @@index([workspaceId, assignedTo])
+  @@index([phone])
+  @@map("leads")
+}
+
+enum LeadSource {
+  WHATSAPP
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  WEB
+  REFERIDO
+  MANUAL
+  LLAMADA
+  EMAIL
+  WALK_IN
+}
+
+// ─────────────────────────────────────────────
+// PIPELINE (CRM)
+// ─────────────────────────────────────────────
+
+model Pipeline {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  isDefault   Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    PipelineStage[]
+  leads     Lead[]
+  deals     Deal[]
+
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id          String @id @default(cuid())
+  pipelineId  String
+  name        String
+  order       Int
+  color       String @default("#6366f1")
+  probability Int    @default(0) // 0-100%
+  rotDays     Int? // días antes de alertar por inactividad
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@map("pipeline_stages")
+}
+
+model Deal {
+  id           String  @id @default(cuid())
+  workspaceId  String
+  leadId       String
+  vehicleId    String?
+  stageId      String?
+  pipelineId   String
+  assignedToId String?
+
+  value           Float?
+  currency        String     @default("DOP")
+  probability     Int        @default(0)
+  status          DealStatus @default(OPEN)
+  closedAt        DateTime?
+  lostReason      String?
+  expectedCloseAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead       Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle?       @relation(fields: [vehicleId], references: [id])
+  stage      PipelineStage? @relation(fields: [stageId], references: [id])
+  pipeline   Pipeline       @relation(fields: [pipelineId], references: [id])
+  assignedTo User?          @relation("AssignedDeals", fields: [assignedToId], references: [id])
+  payments   Payment[]
+  commission Commission?
+  salesOrder SalesOrder?
+
+  @@index([pipelineId, stageId])
+  @@map("deals")
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+// ─────────────────────────────────────────────
+// PAGOS
+// ─────────────────────────────────────────────
+
+model Payment {
+  id          String        @id @default(cuid())
+  workspaceId String
+  dealId      String
+  amount      Float
+  currency    String        @default("DOP")
+  method      PaymentMethod @default(EFECTIVO)
+  note        String?
+  paidAt      DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deal      Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, paidAt])
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+  CHEQUE
+  FINANCIAMIENTO
+  OTRO
+}
+
+// ─────────────────────────────────────────────
+// COMISIONES
+// ─────────────────────────────────────────────
+
+model CommissionRule {
+  id          String             @id @default(cuid())
+  workspaceId String
+  name        String
+  calcType    CommissionCalcType @default(PERCENT_OF_VALUE)
+  percent     Float?
+  fixedAmount Float?
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  commissions Commission[]
+
+  @@index([workspaceId, isActive])
+  @@map("commission_rules")
+}
+
+enum CommissionCalcType {
+  PERCENT_OF_VALUE
+  PERCENT_OF_MARGIN
+  FIXED_AMOUNT
+}
+
+model Commission {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  dealId           String           @unique
+  userId           String
+  ruleId           String?
+  baseAmount       Float
+  amount           Float
+  currency         String           @default("DOP")
+  status           CommissionStatus @default(PENDING)
+  approvedByUserId String?
+  approvedAt       DateTime?
+  rejectionReason  String?
+  paidAt           DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deal       Deal            @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user       User            @relation("CommissionEarner", fields: [userId], references: [id])
+  approvedBy User?           @relation("CommissionApprover", fields: [approvedByUserId], references: [id])
+  rule       CommissionRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([userId])
+  @@map("commissions")
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+// ─────────────────────────────────────────────
+// CONVERSACIONES & MENSAJES
+// ─────────────────────────────────────────────
+
+model Conversation {
+  id            String             @id @default(cuid())
+  workspaceId   String
+  leadId        String?
+  channel       Channel
+  externalId    String? // ID externo (WhatsApp thread, FB conversation ID)
+  status        ConversationStatus @default(OPEN)
+  assignedTo    String?
+  isAiHandled   Boolean            @default(false)
+  lastMessageAt DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id])
+  messages  Message[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, channel])
+  @@map("conversations")
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  senderId       String? // null = agente IA o sistema
+  direction      Direction
+  channel        Channel
+  content        String
+  mediaUrl       String?
+  mediaType      String?
+  isRead         Boolean       @default(false)
+  externalId     String?
+  status         MessageStatus @default(SENT)
+  sentAt         DateTime      @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?        @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, sentAt])
+  @@map("messages")
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum Channel {
+  WHATSAPP
+  WHATSAPP_PERSONAL
+  FACEBOOK
+  INSTAGRAM
+  SMS
+  EMAIL
+  LLAMADA
+  INTERNO
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  SPAM
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+// ─────────────────────────────────────────────
+// CALENDARIO & CITAS
+// ─────────────────────────────────────────────
+
+model Appointment {
+  id            String            @id @default(cuid())
+  workspaceId   String
+  leadId        String?
+  assignedTo    String?
+  title         String
+  notes         String?
+  type          AppointmentType   @default(VISITA_DEALER)
+  status        AppointmentStatus @default(AGENDADA)
+  startAt       DateTime
+  endAt         DateTime
+  location      String?
+  meetingUrl    String?
+  reminderSent  Boolean           @default(false)
+  googleEventId String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id])
+
+  @@index([workspaceId, startAt])
+  @@map("appointments")
+}
+
+enum AppointmentType {
+  VISITA_DEALER
+  LLAMADA
+  VIDEO_LLAMADA
+  TEST_DRIVE
+  ENTREGA
+  SEGUIMIENTO
+}
+
+enum AppointmentStatus {
+  AGENDADA
+  CONFIRMADA
+  COMPLETADA
+  CANCELADA
+  NO_SHOW
+}
+
+// ─────────────────────────────────────────────
+// TAREAS
+// ─────────────────────────────────────────────
+
+model Task {
+  id              String     @id @default(cuid())
+  workspaceId     String
+  leadId          String?
+  assignedTo      String?
+  title           String
+  description     String?
+  status          TaskStatus @default(PENDIENTE)
+  priority        Priority   @default(MEDIA)
+  dueAt           DateTime?
+  dueReminderSent Boolean    @default(false)
+  completedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id])
+  assignee  User?     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([assignedTo, dueAt])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADA
+  CANCELADA
+}
+
+enum Priority {
+  BAJA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+// ─────────────────────────────────────────────
+// CAMPAÑAS
+// ─────────────────────────────────────────────
+
+model Campaign {
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  type        CampaignType
+  status      CampaignStatus @default(BORRADOR)
+  channel     Channel
+  subject     String? // para email
+  content     String
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Métricas
+  totalSent Int @default(0)
+  delivered Int @default(0)
+  opened    Int @default(0)
+  clicked   Int @default(0)
+  replied   Int @default(0)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@map("campaigns")
+}
+
+enum CampaignType {
+  BROADCAST
+  SEQUENCE
+  TRIGGER
+}
+
+enum CampaignStatus {
+  BORRADOR
+  PROGRAMADA
+  ENVIANDO
+  COMPLETADA
+  PAUSADA
+  CANCELADA
+}
+
+// ─────────────────────────────────────────────
+// AGENTES DE IA
+// ─────────────────────────────────────────────
+
+model AIAgent {
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  type        AgentType      @default(CONVERSACIONAL)
+  isPrimary   Boolean        @default(false)
+  status      AiAgentStatus  @default(OFF)
+  channels    AgentChannel[] @default([])
+
+  // Bot Settings — Advanced Settings
+  businessName           String?
+  waitTimeValue          Int     @default(2)
+  waitTimeUnit           String  @default("SECONDS") // SECONDS | MINUTES
+  respondToImages        Boolean @default(false)
+  respondToVoiceNotes    Boolean @default(false)
+  respondToPdfs          Boolean @default(false)
+  sleepOnManualMessage   Boolean @default(false)
+  sleepOnWorkflowMessage Boolean @default(false)
+
+  // Bot Goals
+  model          String   @default("claude-sonnet-5")
+  personality    String?
+  goal           String?
+  additionalInfo String?
+  actions        String[] @default([]) // acciones habilitadas: APPOINTMENT_BOOKING, TRIGGER_WORKFLOW, etc.
+  actionsConfig  Json     @default("{}") // configuración detallada por acción (por key)
+
+  // Preferencias — Resumen de conversación
+  conversationSummaryEnabled Boolean @default(false)
+  conversationSummaryConfig  Json    @default("{}")
+
+  // Tool Kit
+  assignedToolIds String[] @default([])
+
+  // Bot Training — bases de conocimiento adjuntas
+  knowledgeBaseIds String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("ai_agents")
+}
+
+model AgentTool {
+  id            String       @id @default(cuid())
+  workspaceId   String
+  key           String
+  name          String
+  description   String
+  category      ToolCategory
+  method        String       @default("POST") // POST | GET — insignia visual
+  examplePrompt String?
+  isBuiltIn     Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@map("agent_tools")
+}
+
+enum ToolCategory {
+  PLATFORM
+  EXTRACTION
+  TRANSFER
+  ADD_TAG
+  REMOVE_TAG
+  CUSTOM
+  WORKFLOWS
+}
+
+enum AgentType {
+  CONVERSACIONAL // responde mensajes entrantes
+  CALIFICADOR // score y califica leads
+  SEGUIMIENTO // follow-up automático
+  NOTIFICADOR // alerta al vendedor
+  ANALIZADOR // analiza conversaciones
+}
+
+enum AiAgentStatus {
+  OFF
+  SUGGESTIVE
+  AUTO_PILOT
+}
+
+enum AgentChannel {
+  SMS
+  INSTAGRAM
+  FACEBOOK
+  CHAT_WIDGET
+  LIVE_CHAT
+  WHATSAPP
+}
+
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     KnowledgeBaseItem[]
+
+  @@index([workspaceId])
+  @@map("knowledge_bases")
+}
+
+model KnowledgeBaseItem {
+  id              String            @id @default(cuid())
+  knowledgeBaseId String
+  type            KnowledgeItemType
+  title           String
+  content         String?
+  fileUrl         String?
+  sourceUrl       String?
+  createdAt       DateTime          @default(now())
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId])
+  @@map("knowledge_base_items")
+}
+
+enum KnowledgeItemType {
+  TEXTO
+  PREGUNTA_FRECUENTE
+  ARCHIVO
+  URL
+  TABLA
+}
+
+// ─────────────────────────────────────────────
+// AUTOMATIZACIONES
+// ─────────────────────────────────────────────
+
+model Automation {
+  id            String             @id @default(cuid())
+  workspaceId   String
+  name          String
+  description   String?
+  isActive      Boolean            @default(false)
+  trigger       AutomationTrigger
+  triggerConfig Json               @default("{}")
+  actions       AutomationAction[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("automations")
+}
+
+model AutomationAction {
+  id           String @id @default(cuid())
+  automationId String
+  order        Int
+  type         String
+  config       Json   @default("{}")
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@map("automation_actions")
+}
+
+enum AutomationTrigger {
+  LEAD_CREATED
+  LEAD_STAGE_CHANGED
+  MESSAGE_RECEIVED
+  APPOINTMENT_CREATED
+  APPOINTMENT_REMINDER
+  VEHICLE_SOLD
+  TASK_DUE
+  INACTIVITY
+  CUSTOM
+}
+
+// ─────────────────────────────────────────────
+// TAREAS PROGRAMADAS — primitiva genérica de espera/delay, barrida por cron.
+// Alimenta: buffer de respuesta del agente, pasos de Auto Follow-up, la
+// acción WAIT de automatizaciones, y la reactivación de Stop Bot/Human Handover.
+// ─────────────────────────────────────────────
+
+model ScheduledTask {
+  id          String              @id @default(cuid())
+  workspaceId String
+  type        ScheduledTaskType
+  payload     Json                @default("{}")
+  runAt       DateTime
+  status      ScheduledTaskStatus @default(PENDING)
+  attempts    Int                 @default(0)
+  lastError   String?
+  dedupeKey   String?             @unique
+  processedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([workspaceId])
+  @@map("scheduled_tasks")
+}
+
+enum ScheduledTaskType {
+  AGENT_REPLY_BUFFER
+  CONVERSATION_REACTIVATE
+  FOLLOWUP_STEP
+  AUTOMATION_WAIT_RESUME
+  MATCH_INVERSO_TIMEOUT
+}
+
+enum ScheduledTaskStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────
+// INTEGRACIONES
+// ─────────────────────────────────────────────
+
+model Integration {
+  id          String          @id @default(cuid())
+  workspaceId String
+  type        IntegrationType
+  name        String
+  isActive    Boolean         @default(false)
+  config      Json            @default("{}")
+  webhookUrl  String?
+  lastSyncAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, type])
+  @@map("integrations")
+}
+
+enum IntegrationType {
+  WHATSAPP_CLOUD
+  WHATSAPP_EVOLUTION
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  TWILIO
+  RESEND
+  GOOGLE_CALENDAR
+  GOOGLE_ANALYTICS
+  META_ADS
+  OPENAI
+  ANTHROPIC
+}
+
+// ─────────────────────────────────────────────
+// ACTIVIDADES (log de eventos)
+// ─────────────────────────────────────────────
+
+model Activity {
+  id          String       @id @default(cuid())
+  workspaceId String
+  leadId      String?
+  vehicleId   String?
+  userId      String?
+  type        ActivityType
+  description String
+  metadata    Json         @default("{}")
+  createdAt   DateTime     @default(now())
+
+  lead    Lead?    @relation(fields: [leadId], references: [id])
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@index([leadId, createdAt])
+  @@index([vehicleId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@map("activities")
+}
+
+enum ActivityType {
+  LEAD_CREATED
+  LEAD_UPDATED
+  STAGE_CHANGED
+  MESSAGE_SENT
+  MESSAGE_RECEIVED
+  CALL_MADE
+  APPOINTMENT_CREATED
+  APPOINTMENT_COMPLETED
+  VEHICLE_VIEWED
+  DEAL_WON
+  DEAL_LOST
+  TASK_COMPLETED
+  NOTE_ADDED
+  AI_ACTION
+  MATCH_INVERSO
+  CONDUCE_SALIDA
+  CONDUCE_ENTRADA
+  CONDUCE_VENCIDO
+  QUOTE_ENVIADA
+  QUOTE_ACEPTADA
+  SALES_ORDER_CREATED
+  SALES_ORDER_COMPLETED
+  DDC_APROBADO
+  DDC_RECHAZADO
+  AUTHORIZATION_REQUESTED
+  AUTHORIZATION_DECIDED
+  CONTRACT_GENERADO
+  CONTRACT_FIRMADO
+  PROCEDURE_COMPLETADO
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICACIONES
+// ─────────────────────────────────────────────
+
+model Notification {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  leadId      String?
+  title       String
+  body        String
+  type        String
+  isRead      Boolean  @default(false)
+  link        String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// TAGS
+// ─────────────────────────────────────────────
+
+model Tag {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String @default("#6366f1")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leads     Lead[]    @relation("LeadTags")
+  vehicles  Vehicle[] @relation("VehicleTags")
+
+  @@unique([workspaceId, name])
+  @@map("tags")
+}
+
+// ─────────────────────────────────────────────
+// SUPER ADMIN: AUDITORÍA Y USO DE IA
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  actorUserId   String
+  actorName     String // denormalizado: sobrevive aunque se borre el usuario
+  workspaceId   String? // null si es una acción sin tenant específico
+  workspaceName String? // denormalizado: sobrevive aunque se borre el tenant
+  action        String // TENANT_CREATED | TENANT_DUPLICATED | TENANT_SUSPENDED | TENANT_REACTIVATED | TENANT_DELETED | TENANT_SWITCHED | PLAN_CHANGED
+  details       Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}
+
+model AiUsageLog {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  agentId       String?
+  provider      String // ANTHROPIC | OPENAI
+  model         String
+  inputTokens   Int
+  outputTokens  Int
+  usedSharedKey Boolean  @default(false) // true = consumió la key compartida de Autónomo, no la propia del tenant
+  createdAt     DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@map("ai_usage_logs")
+}
+
+// ─────────────────────────────────────────────
+// CONDUCES (movimiento físico de vehículos) — Fase 2A
+// ─────────────────────────────────────────────
+
+enum ConduceType {
+  ENTRADA
+  SALIDA
+}
+
+enum ConduceReason {
+  INGRESO_LOTE
+  PRUEBA_MANEJO
+  TRASLADO_TALLER
+  TRASLADO_SUCURSAL
+  ENTREGA_CLIENTE
+  DEVOLUCION_PRUEBA
+  OTRO
+}
+
+enum ConduceStatus {
+  ABIERTO // salida sin retorno registrado
+  CERRADO // ciclo completo
+  VENCIDO // salida que excedió el tiempo esperado sin retorno
+}
+
+model Conduce {
+  id                  String        @id @default(cuid())
+  workspaceId         String
+  vehicleId           String
+  // Movimiento
+  type                ConduceType
+  reason              ConduceReason
+  reasonDetail        String?
+  // Responsables
+  authorizedById      String // usuario que autoriza
+  driverName          String? // chofer o responsable físico (puede no ser usuario del sistema)
+  driverDocument      String? // cédula del chofer si es externo
+  // Ubicación
+  originLocation      String?
+  destinationLocation String?
+  // Estado del vehículo al momento
+  mileageAtMovement   Int?
+  observations        String?       @db.Text
+  // Vinculación opcional
+  leadId              String? // si es prueba de manejo con un lead específico
+  // Control de retorno (para salidas)
+  expectedReturnAt    DateTime?
+  actualReturnAt      DateTime?
+  returnConduceId     String? // conduce de entrada que cierra esta salida
+  status              ConduceStatus @default(ABIERTO)
+  // Documento
+  documentUrl         String? // PDF generado
+  // Metadata
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  authorizedBy User      @relation("ConduceAuthorizer", fields: [authorizedById], references: [id])
+  lead         Lead?     @relation(fields: [leadId], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([vehicleId, createdAt])
+  @@index([expectedReturnAt]) // para job de detección de vencidos
+  @@map("conduces")
+}
+
+// ─────────────────────────────────────────────
+// PÁGINA WEB (catálogo público) — Fase 2A
+// ─────────────────────────────────────────────
+
+model WebsiteConfig {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  // Dominio
+  subdomain          String?  @unique // ej. h1g — reservado para uso futuro (subdominio real), hoy no hay resolución activa
+  customDomain       String?  @unique
+  isPublished        Boolean  @default(false)
+  // Branding
+  logoUrl            String?
+  primaryColor       String?  @default("#2563EB")
+  heroImageUrl       String?
+  tagline            String?
+  // Contenido
+  aboutText          String?  @db.Text
+  whatsappNumber     String? // botón de contacto directo
+  addressText        String?
+  businessHoursText  String?
+  // Comportamiento del catálogo
+  showPrices         Boolean  @default(true)
+  featuredVehicleIds String[] @default([])
+  // SEO
+  metaTitle          String?
+  metaDescription    String?
+  // Metadata
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("website_configs")
+}
+
+// ─────────────────────────────────────────────
+// OPERACIONES — Fase 2B
+// ─────────────────────────────────────────────
+
+// ── Debida Diligencia del Cliente ──
+
+enum DdcStatus {
+  PENDIENTE
+  EN_REVISION
+  APROBADO
+  RECHAZADO
+}
+
+enum RiskLevel {
+  BAJO
+  MEDIO
+  ALTO
+}
+
+enum IdDocumentType {
+  CEDULA
+  PASAPORTE
+  RNC
+  OTRO
+}
+
+model CustomerDueDiligence {
+  id               String         @id @default(cuid())
+  workspaceId      String
+  leadId           String
+  // Identificación
+  idDocumentType   IdDocumentType
+  idDocumentNumber String
+  idDocumentUrl    String?
+  fullLegalName    String
+  nationality      String?
+  dateOfBirth      DateTime?
+  // Domicilio
+  addressLine      String?
+  addressProofUrl  String?
+  // Actividad económica
+  occupation       String?
+  incomeSource     String?        @db.Text
+  // Screening
+  isPep            Boolean        @default(false)
+  pepDetail        String?
+  // Evaluación
+  riskLevel        RiskLevel?
+  riskFactors      Json?
+  // Estado
+  status           DdcStatus      @default(PENDIENTE)
+  reviewedById     String?
+  reviewedAt       DateTime?
+  reviewNotes      String?        @db.Text
+  rejectionReason  String?
+  // Vigencia
+  expiresAt        DateTime?
+  // Metadata
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  reviewedBy  User?        @relation("DdcReviewer", fields: [reviewedById], references: [id])
+  salesOrders SalesOrder[]
+
+  @@index([workspaceId, status])
+  @@index([leadId])
+  @@map("customer_due_diligences")
+}
+
+// ── Cotizaciones ──
+
+enum QuoteStatus {
+  BORRADOR
+  ENVIADA
+  ACEPTADA
+  RECHAZADA
+  EXPIRADA
+  CONVERTIDA
+}
+
+enum SalesPaymentMethod {
+  CONTADO
+  FINANCIAMIENTO_BANCARIO
+  MIXTO
+  OTRO
+}
+
+model Quote {
+  id             String              @id @default(cuid())
+  workspaceId    String
+  quoteNumber    String
+  leadId         String
+  vehicleId      String
+  createdById    String
+  // Términos
+  offeredPrice   Float
+  currency       String              @default("DOP")
+  exchangeRate   Float?
+  paymentMethod  SalesPaymentMethod?
+  downPayment    Float?
+  installments   Int?
+  conditionsText String?             @db.Text
+  // Vigencia
+  validUntil     DateTime
+  // Estado
+  status         QuoteStatus         @default(BORRADOR)
+  sentAt         DateTime?
+  respondedAt    DateTime?
+  // Documento
+  documentUrl    String?
+  // Metadata
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead        Lead         @relation(fields: [leadId], references: [id])
+  vehicle     Vehicle      @relation(fields: [vehicleId], references: [id])
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  salesOrders SalesOrder[]
+
+  @@unique([workspaceId, quoteNumber])
+  @@index([workspaceId, status])
+  @@index([leadId])
+  @@index([validUntil])
+  @@map("quotes")
+}
+
+// ── Orden de Venta + Autorización ──
+
+enum SalesOrderStatus {
+  BORRADOR
+  PENDIENTE_AUTORIZACION
+  AUTORIZADA
+  EN_PROCESO
+  COMPLETADA
+  CANCELADA
+}
+
+model SalesOrder {
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  orderNumber        String
+  // Vinculaciones
+  leadId             String
+  vehicleId          String
+  quoteId            String?
+  ddcId              String?
+  dealId             String             @unique
+  // Vendedor
+  soldById           String
+  // Términos financieros
+  salePrice          Float
+  currency           String             @default("DOP")
+  exchangeRate       Float?
+  paymentMethod      SalesPaymentMethod
+  downPayment        Float?
+  installments       Int?
+  installmentAmount  Float?
+  firstPaymentDate   DateTime?
+  conditionsText     String?            @db.Text
+  // Estado
+  status             SalesOrderStatus   @default(BORRADOR)
+  saleDate           DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  // Metadata
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead      Lead                  @relation(fields: [leadId], references: [id])
+  vehicle   Vehicle               @relation(fields: [vehicleId], references: [id])
+  quote     Quote?                @relation(fields: [quoteId], references: [id])
+  ddc       CustomerDueDiligence? @relation(fields: [ddcId], references: [id])
+  deal      Deal                  @relation(fields: [dealId], references: [id])
+  soldBy    User                  @relation("SalesOrderSeller", fields: [soldById], references: [id])
+
+  authorizations        SalesAuthorization[]
+  contracts             Contract[]
+  procedures            PostSaleProcedure[]
+  documents             OperationDocument[]
+
+  @@unique([workspaceId, orderNumber])
+  @@index([workspaceId, status])
+  @@index([leadId])
+  @@index([vehicleId])
+  @@map("sales_orders")
+}
+
+enum AuthorizationStatus {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+enum AuthorizationTrigger {
+  BELOW_MINIMUM_PRICE
+  DISCOUNT_THRESHOLD
+  FINANCED_SALE
+  HIGH_VALUE
+  MANUAL
+}
+
+model SalesAuthorization {
+  id            String               @id @default(cuid())
+  workspaceId   String
+  salesOrderId  String
+  // Por qué se requirió
+  trigger       AuthorizationTrigger
+  triggerDetail String?
+  // Decisión
+  status        AuthorizationStatus  @default(PENDIENTE)
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNotes String?              @db.Text
+  // Metadata
+  createdAt     DateTime             @default(now())
+
+  salesOrder  SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  requestedBy User       @relation("AuthorizationRequester", fields: [requestedById], references: [id])
+  decidedBy   User?      @relation("AuthorizationDecider", fields: [decidedById], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([salesOrderId])
+  @@map("sales_authorizations")
+}
+
+model AuthorizationRule {
+  id                       String               @id @default(cuid())
+  workspaceId              String
+  name                     String
+  trigger                  AuthorizationTrigger
+  discountPercentThreshold Float?
+  amountThreshold          Float?
+  requiredApproverRole     Role                 @default(ADMIN_DEALER)
+  isActive                 Boolean              @default(true)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, isActive])
+  @@map("authorization_rules")
+}
+
+// ── Contratos y documentos ──
+
+enum ContractStatus {
+  GENERADO
+  ENVIADO
+  FIRMADO
+  ANULADO
+}
+
+model ContractTemplate {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  documentType String // contrato_compraventa, pagare, recibo, otro
+  bodyTemplate String   @db.Text
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contracts Contract[]
+
+  @@index([workspaceId, isActive])
+  @@map("contract_templates")
+}
+
+model Contract {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  salesOrderId      String
+  templateId        String?
+  renderedBody      String         @db.Text
+  documentUrl       String?
+  signedDocumentUrl String?
+  status            ContractStatus @default(GENERADO)
+  sentAt            DateTime?
+  signedAt          DateTime?
+  generatedById     String
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  salesOrder  SalesOrder        @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  template    ContractTemplate? @relation(fields: [templateId], references: [id])
+  generatedBy User              @relation(fields: [generatedById], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([salesOrderId])
+  @@map("contracts")
+}
+
+enum OperationDocumentType {
+  CEDULA
+  PASAPORTE
+  CONTRATO
+  COMPROBANTE_PAGO
+  DDC_SOPORTE
+  MATRICULA
+  SEGURO
+  OTRO
+}
+
+model OperationDocument {
+  id           String                @id @default(cuid())
+  workspaceId  String
+  salesOrderId String?
+  leadId       String?
+  type         OperationDocumentType
+  name         String
+  url          String
+  mimeType     String?
+  sizeBytes    Int?
+  uploadedById String
+  createdAt    DateTime              @default(now())
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  lead       Lead?       @relation(fields: [leadId], references: [id])
+  uploadedBy User        @relation(fields: [uploadedById], references: [id])
+
+  @@index([workspaceId])
+  @@index([salesOrderId])
+  @@index([leadId])
+  @@map("operation_documents")
+}
+
+// ── Trámites post-venta ──
+
+enum ProcedureType {
+  SEGUNDA_LLAVE
+  TRASPASO
+  ENDOSO
+  MATRICULA
+  PLACA
+  SEGURO
+  OTRO
+}
+
+enum ProcedureStatus {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADO
+  CANCELADO
+}
+
+model PostSaleProcedure {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  salesOrderId String
+  vehicleId    String
+  type         ProcedureType
+  typeDetail   String?
+  description  String?         @db.Text
+  assignedToId String?
+  dueDate      DateTime?
+  status       ProcedureStatus @default(PENDIENTE)
+  completedAt  DateTime?
+  documentUrl  String?
+  notes        String?         @db.Text
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  assignedTo User?      @relation("ProcedureAssignee", fields: [assignedToId], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([salesOrderId])
+  @@index([assignedToId, status])
+  @@index([dueDate])
+  @@map("post_sale_procedures")
+}
+
+// ── Numeración atómica de documentos ──
+
+model DocumentSequence {
+  id            String @id @default(cuid())
+  workspaceId   String
+  prefix        String // "COT" | "OV"
+  year          Int
+  currentNumber Int    @default(0)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, prefix, year])
+  @@map("document_sequences")
+}
+
+// Tokens de un solo uso para restablecer contraseña / aceptar invitación.
+// Se guarda solo el hash SHA-256; el token en claro viaja únicamente en el correo.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
