@@ -1606,10 +1606,11 @@ model BroMessage {
   workspaceId String
   leadId      String
   userId      String
-  role        String // "user" | "assistant"
+  role        String // "user" | "assistant" | "summary" (resumen de compactación)
   content     String
   drafts      Json? // borradores de mensaje que Bro propuso
   actions     Json? // acciones que Bro ejecutó en ese turno
+  coversUntil DateTime? // solo en role "summary": el resumen sustituye a los turnos hasta esta fecha
   createdAt   DateTime @default(now())
 
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)

@@ -7,6 +7,8 @@ export type ToolLoopResult = {
   toolCalls: string[];
   totalInputTokens: number;
   totalOutputTokens: number;
+  /** Tamaño real del contexto en la última llamada al modelo (entrada + caché), para decidir cuándo compactar. */
+  lastInputTokens: number;
 };
 
 /** Lo que devuelve executeToolCall por cada tool_use — terminal corta el loop y usa terminalMessage como respuesta final, sin dejar que el modelo lo parafrasee. */
@@ -26,7 +28,7 @@ export class ToolLoopError extends Error {
 export async function runToolCallingLoop(params: {
   client: Anthropic;
   model: string;
-  system: string;
+  system: string | Anthropic.Messages.TextBlockParam[];
   tools: Anthropic.Tool[];
   messages: Anthropic.Messages.MessageParam[];
   executeToolCall: (block: Anthropic.Messages.ToolUseBlock) => Promise<ToolCallOutcome>;
@@ -39,6 +41,7 @@ export async function runToolCallingLoop(params: {
   let finalText = "";
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let lastInputTokens = 0;
 
   for (let i = 0; i < maxIterations; i++) {
     let response: Anthropic.Messages.Message;
@@ -59,6 +62,7 @@ export async function runToolCallingLoop(params: {
     }
     totalInputTokens += response.usage.input_tokens;
     totalOutputTokens += response.usage.output_tokens;
+    lastInputTokens = response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0);
 
     const toolUseBlocks = response.content.filter((b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use");
     const textBlocks = response.content.filter((b): b is Anthropic.Messages.TextBlock => b.type === "text");
@@ -84,5 +88,5 @@ export async function runToolCallingLoop(params: {
     }
   }
 
-  return { finalText, toolCalls: toolCallLog, totalInputTokens, totalOutputTokens };
+  return { finalText, toolCalls: toolCallLog, totalInputTokens, totalOutputTokens, lastInputTokens };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Send, CornerDownLeft, Check, Loader2 } from "lucide-react";
+import { Sparkles, Send, CornerDownLeft, Check, Loader2, Layers } from "lucide-react";
 import { askBro, getBroHistory, type BroEntry } from "@/app/actions/bro";
 import { cn } from "@/lib/utils";
 
@@ -22,47 +22,80 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
   // La memoria vive en el servidor (una sesión por contacto y usuario); aquí solo se muestra.
   const [entries, setEntries] = useState<BroEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState<string | null>(null); // mensaje en vuelo, se muestra al instante
+  const [queued, setQueued] = useState<string[]>([]); // mensajes enviados que esperan turno (el primero es el que Bro está atendiendo)
+  const [compacting, setCompacting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const leadRef = useRef(leadId);
+  const queueRef = useRef<string[]>([]);
+  const runningRef = useRef(false);
+  const busy = queued.length > 0;
 
   useEffect(() => {
     leadRef.current = leadId;
-    setEntries([]); setPending(null); setError(null); setLoading(true);
+    queueRef.current = []; runningRef.current = false;
+    setEntries([]); setQueued([]); setCompacting(false); setError(null); setLoading(true);
     getBroHistory(leadId)
       .then((r) => { if (leadRef.current === leadId && r.ok) setEntries(r.entries); })
       .catch(() => {})
       .finally(() => { if (leadRef.current === leadId) setLoading(false); });
   }, [leadId]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [entries, busy, pending, loading]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [entries, queued, compacting, loading]);
+
+  // Mientras hay algo en vuelo, se pregunta si Bro está compactando para avisarlo en pantalla.
+  useEffect(() => {
+    if (!busy) { setCompacting(false); return; }
+    const lead = leadId;
+    const timer = setInterval(() => {
+      fetch(`/api/bro/status?leadId=${encodeURIComponent(lead)}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((s: { compacting?: boolean }) => { if (leadRef.current === lead) setCompacting(!!s.compacting); })
+        .catch(() => {});
+    }, 1200);
+    return () => clearInterval(timer);
+  }, [busy, leadId]);
 
   // Con la charla en marcha el panel sube a la mitad de la altura de la pantalla.
-  const expanded = entries.length > 0 || pending !== null;
+  const expanded = entries.length > 0 || queued.length > 0;
 
-  async function send(text: string) {
-    const msg = text.trim();
-    if (!msg || busy) return;
-    setInput(""); setBusy(true); setPending(msg); setError(null);
+  // Cola: si escribes mientras Bro responde (o compacta), tu mensaje espera y se envía en orden.
+  async function drain() {
+    if (runningRef.current) return;
+    runningRef.current = true;
     const lead = leadId;
     try {
-      const r = await askBro(lead, conversationId, msg);
-      if (leadRef.current !== lead) return;
-      if (r.ok) {
-        const hadActions = r.entries.at(-1)?.actions.length;
-        setEntries(r.entries);
-        if (hadActions) onActed();
-      } else {
-        setError(r.error); setInput(msg);
+      while (queueRef.current.length && leadRef.current === lead) {
+        const msg = queueRef.current[0];
+        try {
+          const r = await askBro(lead, conversationId, msg);
+          if (leadRef.current !== lead) return;
+          if (r.ok) {
+            setEntries(r.entries);
+            if (r.entries.at(-1)?.actions.length) onActed();
+          } else {
+            setError(r.error); setInput((cur) => cur || msg);
+          }
+        } catch {
+          if (leadRef.current !== lead) return;
+          setError("No pude conectar con Bro. Inténtalo de nuevo."); setInput((cur) => cur || msg);
+        }
+        queueRef.current.shift();
+        setQueued([...queueRef.current]);
       }
-    } catch {
-      if (leadRef.current === lead) { setError("No pude conectar con Bro. Inténtalo de nuevo."); setInput(msg); }
     } finally {
-      if (leadRef.current === lead) { setPending(null); setBusy(false); }
+      if (leadRef.current === lead) runningRef.current = false;
     }
+  }
+
+  function send(text: string) {
+    const msg = text.trim();
+    if (!msg) return;
+    setInput(""); setError(null);
+    queueRef.current.push(msg);
+    setQueued([...queueRef.current]);
+    void drain();
   }
 
   return (
@@ -85,7 +118,16 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
             </div>
           </div>
         )}
-        {entries.map((e) => (
+        {entries.map((e) => e.role === "summary" ? (
+          <details key={e.id} className="group my-1 text-[11px] text-muted-foreground">
+            <summary className="flex cursor-pointer list-none items-center gap-2 select-none">
+              <span className="h-px flex-1 bg-violet-200" />
+              <span className="inline-flex items-center gap-1 text-violet-600"><Layers className="h-3 w-3" /> Conversación compactada · ver resumen</span>
+              <span className="h-px flex-1 bg-violet-200" />
+            </summary>
+            <div className="mt-1.5 rounded-lg border border-violet-100 bg-violet-50/50 p-2 whitespace-pre-wrap text-[12px] text-foreground">{e.content}</div>
+          </details>
+        ) : (
           <div key={e.id} className={cn("flex", e.role === "user" ? "justify-end" : "justify-start")}>
             <div className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap",
               e.role === "user" ? "bg-violet-600 text-white" : "bg-violet-50 text-foreground border border-violet-100")}>
@@ -104,13 +146,17 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
             </div>
           </div>
         ))}
-        {pending && (
-          <div className="flex justify-end">
-            <div className="max-w-[88%] rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap bg-violet-600 text-white">{pending}</div>
+        {queued.map((q, i) => (
+          <div key={i} className="flex flex-col items-end gap-0.5">
+            <div className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap bg-violet-600 text-white", i > 0 && "opacity-60")}>{q}</div>
+            {i > 0 && <span className="text-[10px] text-muted-foreground">en cola</span>}
           </div>
-        )}
+        ))}
         {busy && (
-          <div className="flex items-center gap-1.5 text-[12px] text-violet-600"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Bro está pensando…</div>
+          <div className="flex items-center gap-1.5 text-[12px] text-violet-600">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {compacting ? "Compactando la conversación para seguir… tu mensaje está en cola." : "Bro está pensando…"}
+          </div>
         )}
         {error && <div className="rounded-xl px-3 py-2 text-[12px] bg-red-50 text-red-700 border border-red-200">{error}</div>}
         <div ref={endRef} />
@@ -124,7 +170,7 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
           rows={2}
           className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground/50 py-1.5"
         />
-        <button onClick={() => send(input)} disabled={!input.trim() || busy}
+        <button onClick={() => send(input)} disabled={!input.trim()}
           className="h-8 px-3 rounded-md bg-violet-600 text-white text-sm inline-flex items-center gap-1 hover:bg-violet-700 disabled:opacity-50 transition-colors">
           <Send className="h-3.5 w-3.5" /> Enviar
         </button>
