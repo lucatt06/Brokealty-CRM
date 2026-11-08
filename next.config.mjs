@@ -13,6 +13,8 @@ const nextConfig = {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   experimental: {
+    // Next 14 solo ejecuta src/instrumentation.ts (scheduler de jobs, sync de webhooks) con este flag.
+    instrumentationHook: true,
     serverActions: {
       bodySizeLimit: "10mb",
     },
