@@ -4,6 +4,7 @@ import { AuthError, assertWorkspace, requireAdminCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { encrypt, decrypt, maskSecret } from "@/lib/crypto";
+import { EVOLUTION_WEBHOOK_VERSION } from "@/lib/evolution/sync-webhooks";
 import { createInstance, connectInstance, fetchConnectionState, deleteInstance, setInstanceWebhook } from "@/lib/evolution/client";
 
 export type AiProvider = "OPENAI" | "ANTHROPIC";
@@ -177,7 +178,7 @@ export async function connectWhatsAppEvolution(workspaceId: string) {
       type: "WHATSAPP_EVOLUTION",
       name: "WhatsApp (Evolution API)",
       isActive: false,
-      config: { instanceName, connected: false },
+      config: { instanceName, connected: false, webhookVersion: EVOLUTION_WEBHOOK_VERSION },
       webhookUrl,
     },
     update: { webhookUrl },

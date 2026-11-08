@@ -24,6 +24,14 @@ export async function register() {
     return;
   }
 
+  // Re-registra los webhooks de las instancias de Evolution ya creadas (idempotente; ver sync-webhooks.ts).
+  setTimeout(() => {
+    import("@/lib/evolution/sync-webhooks")
+      .then(({ syncEvolutionWebhooks }) => syncEvolutionWebhooks())
+      .then((r) => { if (r.updated || r.failed) console.log(`[evolution] webhooks sincronizados: ${r.updated} actualizados, ${r.failed} con error`); })
+      .catch((e) => console.error("[evolution] fallo sincronizando webhooks:", e));
+  }, 20_000);
+
   const base = `http://127.0.0.1:${process.env.PORT ?? 3000}`;
   for (const job of JOBS) {
     const run = async () => {
