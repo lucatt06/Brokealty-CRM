@@ -11,7 +11,7 @@ export const EVOLUTION_WEBHOOK_VERSION = 2; // 2 = + MESSAGES_EDITED y MESSAGES_
 
 type Config = { instanceName?: string; webhookVersion?: number; [k: string]: unknown };
 
-export async function syncEvolutionWebhooks(): Promise<{ updated: number; failed: number }> {
+export async function syncEvolutionWebhooks(): Promise<{ total: number; updated: number; failed: number }> {
   const integrations = await prisma.integration.findMany({ where: { type: "WHATSAPP_EVOLUTION" } });
   let updated = 0, failed = 0;
   for (const integration of integrations) {
@@ -26,5 +26,5 @@ export async function syncEvolutionWebhooks(): Promise<{ updated: number; failed
       console.error(`[evolution] no se pudo actualizar el webhook de ${config.instanceName}:`, e instanceof Error ? e.message : e);
     }
   }
-  return { updated, failed };
+  return { total: integrations.length, updated, failed };
 }

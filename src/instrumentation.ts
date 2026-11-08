@@ -28,7 +28,7 @@ export async function register() {
   setTimeout(() => {
     import("@/lib/evolution/sync-webhooks")
       .then(({ syncEvolutionWebhooks }) => syncEvolutionWebhooks())
-      .then((r) => { if (r.updated || r.failed) console.log(`[evolution] webhooks sincronizados: ${r.updated} actualizados, ${r.failed} con error`); })
+      .then((r) => { console.log(`[evolution] webhooks revisados: ${r.total} instancia(s), ${r.updated} actualizada(s), ${r.failed} con error`); })
       .catch((e) => console.error("[evolution] fallo sincronizando webhooks:", e));
   }, 20_000);
 
