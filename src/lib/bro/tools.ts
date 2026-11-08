@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { cleanDisplayName } from "@/lib/leads/contact-name";
 import { ACTION_REGISTRY } from "@/lib/actions/registry";
+import { messageLine } from "@/lib/bro/context";
 
 /**
  * Herramientas de Bro. Todas operan SOLO sobre el contacto abierto (ctx.leadId, ya verificado) y el workspace
@@ -41,9 +42,24 @@ const UPDATE_NAME: Anthropic.Tool = {
   },
 };
 
+const READ_HISTORY: Anthropic.Tool = {
+  name: "read_history",
+  description:
+    "Busca o lee mensajes y actividad ANTIGUOS de este contacto que no caben en tu contexto (el contexto solo trae lo más reciente). " +
+    "Filtra por texto (query) y/o por fecha (before = ISO 8601: solo lo anterior a esa fecha). Devuelve lo más reciente que cumpla.",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Texto a buscar (sin distinguir mayúsculas). Vacío = solo por fecha" },
+      before: { type: "string", description: "Fecha ISO 8601; solo resultados anteriores a ella" },
+      limit: { type: "number", description: "Máximo de resultados (1-60, por defecto 30)" },
+    },
+  },
+};
+
 export function broTools(): Anthropic.Tool[] {
   const fromRegistry = BRO_ACTION_KEYS.map((k) => ACTION_REGISTRY[k]?.anthropicSchema).filter((t): t is Anthropic.Tool => Boolean(t));
-  return [...fromRegistry, DRAFT_REPLY, UPDATE_NAME];
+  return [READ_HISTORY, ...fromRegistry, DRAFT_REPLY, UPDATE_NAME];
 }
 
 export type BroToolResult = { content: string; draft?: string; action?: string };
@@ -57,6 +73,33 @@ export async function runBroTool(
     const text = String((input as { text?: unknown })?.text ?? "").trim().slice(0, 4000);
     if (!text) return { content: "El borrador estaba vacío." };
     return { content: "Borrador listo. La persona lo verá y decidirá si lo envía. No digas que ya fue enviado.", draft: text };
+  }
+  if (name === "read_history") {
+    const i = (input ?? {}) as { query?: unknown; before?: unknown; limit?: unknown };
+    const query = typeof i.query === "string" ? i.query.trim().slice(0, 200) : "";
+    const before = typeof i.before === "string" && !isNaN(Date.parse(i.before)) ? new Date(i.before) : null;
+    const limit = Math.min(Math.max(Number(i.limit) || 30, 1), 60);
+    const convos = await prisma.conversation.findMany({ where: { workspaceId: ctx.workspaceId, leadId: ctx.leadId }, select: { id: true } });
+    const [msgs, acts] = await Promise.all([
+      convos.length
+        ? prisma.message.findMany({
+            where: { conversationId: { in: convos.map((c) => c.id) }, deletedAt: null, ...(before ? { sentAt: { lt: before } } : {}), ...(query ? { content: { contains: query, mode: "insensitive" } } : {}) },
+            orderBy: { sentAt: "desc" }, take: limit,
+            select: { direction: true, content: true, sentAt: true, channel: true, mediaType: true },
+          })
+        : Promise.resolve([]),
+      prisma.activity.findMany({
+        where: { workspaceId: ctx.workspaceId, leadId: ctx.leadId, type: { notIn: ["MESSAGE_SENT", "MESSAGE_RECEIVED"] }, ...(before ? { createdAt: { lt: before } } : {}), ...(query ? { description: { contains: query, mode: "insensitive" } } : {}) },
+        orderBy: { createdAt: "desc" }, take: Math.ceil(limit / 2),
+        select: { type: true, description: true, createdAt: true },
+      }),
+    ]);
+    const lines = [
+      ...msgs.reverse().map(messageLine),
+      ...acts.reverse().map((a) => `[${a.createdAt.toLocaleString("es-DO", { timeZone: "America/Santo_Domingo" })}] ${a.type}: ${a.description.slice(0, 400)}`),
+    ];
+    const text = lines.length ? `<historial>\n${lines.join("\n")}\n</historial>` : "No encontré nada con ese criterio.";
+    return { content: text.slice(0, 14_000) };
   }
   if (name === "update_contact_name") {
     const i = input as { firstName?: unknown; lastName?: unknown };

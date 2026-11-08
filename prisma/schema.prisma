@@ -343,6 +343,7 @@ model Lead {
   salesOrders        SalesOrder[]
   propertiesBought   Property[]             @relation("PropertySoldTo")
   operationDocuments OperationDocument[]
+  broMessages        BroMessage[]
 
   @@index([workspaceId, stage])
   @@index([workspaceId, assignedTo])
@@ -1597,4 +1598,22 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+/// Memoria de "Habla con Bro": una sesión por (contacto, usuario). Se carga siempre completa (acotada) en cada turno.
+model BroMessage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  leadId      String
+  userId      String
+  role        String // "user" | "assistant"
+  content     String
+  drafts      Json? // borradores de mensaje que Bro propuso
+  actions     Json? // acciones que Bro ejecutó en ese turno
+  createdAt   DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, userId, createdAt])
+  @@map("bro_messages")
 }

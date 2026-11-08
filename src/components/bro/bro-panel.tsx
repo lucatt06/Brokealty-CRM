@@ -2,13 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Send, CornerDownLeft, Check, Loader2 } from "lucide-react";
-import { askBro, type BroTurn } from "@/app/actions/bro";
+import { askBro, getBroHistory, type BroEntry } from "@/app/actions/bro";
 import { cn } from "@/lib/utils";
-
-type Entry = { role: "user" | "assistant"; content: string; drafts?: string[]; actions?: string[]; error?: boolean };
-
-// Las conversaciones con Bro viven en el navegador mientras la pestaña esté abierta (una por contacto).
-const memory = new Map<string, Entry[]>();
 
 const SUGGESTIONS = [
   "Resúmeme a este cliente",
@@ -24,44 +19,64 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
   onUseDraft: (text: string) => void;
   onActed: () => void;
 }) {
-  const [entries, setEntries] = useState<Entry[]>(() => memory.get(leadId) ?? []);
+  // La memoria vive en el servidor (una sesión por contacto y usuario); aquí solo se muestra.
+  const [entries, setEntries] = useState<BroEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState<string | null>(null); // mensaje en vuelo, se muestra al instante
+  const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const leadRef = useRef(leadId);
 
-  useEffect(() => { setEntries(memory.get(leadId) ?? []); }, [leadId]);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [entries, busy]);
+  useEffect(() => {
+    leadRef.current = leadId;
+    setEntries([]); setPending(null); setError(null); setLoading(true);
+    getBroHistory(leadId)
+      .then((r) => { if (leadRef.current === leadId && r.ok) setEntries(r.entries); })
+      .catch(() => {})
+      .finally(() => { if (leadRef.current === leadId) setLoading(false); });
+  }, [leadId]);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [entries, busy, pending, loading]);
+
+  // Con la charla en marcha el panel sube a la mitad de la altura de la pantalla.
+  const expanded = entries.length > 0 || pending !== null;
 
   async function send(text: string) {
     const msg = text.trim();
     if (!msg || busy) return;
-    const history: BroTurn[] = entries.filter((e) => !e.error).map((e) => ({ role: e.role, content: e.content }));
-    const next: Entry[] = [...entries, { role: "user", content: msg }];
-    setEntries(next); memory.set(leadId, next);
-    setInput(""); setBusy(true);
+    setInput(""); setBusy(true); setPending(msg); setError(null);
+    const lead = leadId;
     try {
-      const r = await askBro(leadId, conversationId, history, msg);
-      const reply: Entry = r.ok
-        ? { role: "assistant", content: r.reply, drafts: r.drafts, actions: r.actions }
-        : { role: "assistant", content: r.error, error: true };
-      const done = [...next, reply];
-      setEntries(done); memory.set(leadId, done);
-      if (r.ok && r.actions.length) onActed();
+      const r = await askBro(lead, conversationId, msg);
+      if (leadRef.current !== lead) return;
+      if (r.ok) {
+        const hadActions = r.entries.at(-1)?.actions.length;
+        setEntries(r.entries);
+        if (hadActions) onActed();
+      } else {
+        setError(r.error); setInput(msg);
+      }
     } catch {
-      const done: Entry[] = [...next, { role: "assistant", content: "No pude conectar con Bro. Inténtalo de nuevo.", error: true }];
-      setEntries(done); memory.set(leadId, done);
+      if (leadRef.current === lead) { setError("No pude conectar con Bro. Inténtalo de nuevo."); setInput(msg); }
     } finally {
-      setBusy(false);
+      if (leadRef.current === lead) { setPending(null); setBusy(false); }
     }
   }
 
   return (
     <div className="flex flex-col">
-      <div className="max-h-64 min-h-[7rem] overflow-y-auto px-3 py-2 space-y-2">
-        {entries.length === 0 && (
+      <div
+        className="overflow-y-auto px-3 py-2 space-y-2 transition-[height] duration-300 ease-out"
+        // Antes del primer mensaje: compacto. Después: el compositor entero ocupa ~la mitad de la pantalla.
+        style={{ height: expanded ? "calc(50vh - 120px)" : "7.5rem" }}
+      >
+        {loading && <div className="flex items-center gap-1.5 text-[12px] text-violet-600"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Recuperando tu charla con Bro…</div>}
+        {!loading && !expanded && (
           <div className="py-1">
             <p className="text-[12px] text-muted-foreground mb-2">
-              Soy <span className="font-semibold text-violet-700">Bro</span>. Ya tengo la ficha y la conversación de <span className="font-medium text-foreground">{leadName}</span>; pídeme lo que necesites.
+              Soy <span className="font-semibold text-violet-700">Bro</span>. Ya conozco a <span className="font-medium text-foreground">{leadName}</span>: sus conversaciones, notas, tareas, citas y todo su historial. Pídeme lo que necesites.
             </p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTIONS.map((s) => (
@@ -70,15 +85,15 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
             </div>
           </div>
         )}
-        {entries.map((e, i) => (
-          <div key={i} className={cn("flex", e.role === "user" ? "justify-end" : "justify-start")}>
+        {entries.map((e) => (
+          <div key={e.id} className={cn("flex", e.role === "user" ? "justify-end" : "justify-start")}>
             <div className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap",
-              e.role === "user" ? "bg-violet-600 text-white" : e.error ? "bg-red-50 text-red-700 border border-red-200" : "bg-violet-50 text-foreground border border-violet-100")}>
+              e.role === "user" ? "bg-violet-600 text-white" : "bg-violet-50 text-foreground border border-violet-100")}>
               {e.content}
-              {e.actions?.map((a, j) => (
+              {e.actions.map((a, j) => (
                 <div key={j} className="mt-1.5 flex items-start gap-1.5 text-[11px] text-emerald-700"><Check className="h-3 w-3 mt-0.5 shrink-0" />{a}</div>
               ))}
-              {e.drafts?.map((d, j) => (
+              {e.drafts.map((d, j) => (
                 <div key={j} className="mt-2 rounded-lg border border-violet-200 bg-white p-2">
                   <p className="text-[12px] text-foreground whitespace-pre-wrap">{d}</p>
                   <button onClick={() => onUseDraft(d)} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 hover:text-violet-900">
@@ -89,9 +104,15 @@ export function BroPanel({ leadId, conversationId, leadName, onUseDraft, onActed
             </div>
           </div>
         ))}
+        {pending && (
+          <div className="flex justify-end">
+            <div className="max-w-[88%] rounded-xl px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap bg-violet-600 text-white">{pending}</div>
+          </div>
+        )}
         {busy && (
           <div className="flex items-center gap-1.5 text-[12px] text-violet-600"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Bro está pensando…</div>
         )}
+        {error && <div className="rounded-xl px-3 py-2 text-[12px] bg-red-50 text-red-700 border border-red-200">{error}</div>}
         <div ref={endRef} />
       </div>
       <div className="flex items-end gap-2 px-3 pb-2 pt-1 border-t border-border/50">
