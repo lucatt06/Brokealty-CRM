@@ -1,6 +1,7 @@
 "use client";
 
 import { EditableName } from "@/components/leads/editable-name";
+import { BroPanel } from "@/components/bro/bro-panel";
 import {
   DeletedBubble, LocationBubble, MessageMenu, PollBubble, PollModal, PropertyLocationModal, ReactionBadges,
   type RichMsg,
@@ -10,7 +11,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "rea
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Send, Bot, MessageCircle, MessageSquare,
-  Phone, Mail, Camera, Lock, Star, CheckCheck, Check, AlertCircle,
+  Sparkles, Phone, Mail, Camera, Lock, Star, CheckCheck, Check, AlertCircle,
   Paperclip, Smile, User, Trash2, Tag,
   ChevronDown, ChevronUp, ArrowUpDown, SlidersHorizontal,
   ExternalLink, CheckSquare, Square, Calendar,
@@ -418,7 +419,7 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
       markConversationRead(conv.id).then(() => router.refresh());
     }
   }
-  const [composerMode, setComposerMode] = useState<"message" | "note">("message");
+  const [composerMode, setComposerMode] = useState<"message" | "note" | "bro">("message");
   const [composerFocused, setComposerFocused] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [outChannel, setOutChannel]   = useState<string>(
@@ -1252,6 +1253,22 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                         Nota Interna
                       </button>
 
+                      {/* Habla con Bro tab */}
+                      {selected.lead && (
+                        <button
+                          onClick={() => setComposerMode("bro")}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 -mb-px transition-all shrink-0",
+                            composerMode === "bro"
+                              ? "border-violet-600 text-violet-700"
+                              : "border-transparent text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          Habla con Bro
+                        </button>
+                      )}
+
                       {/* Minimize */}
                       <button
                         onClick={() => setComposerOpen(false)}
@@ -1262,6 +1279,15 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                       </button>
                     </div>
 
+                    {composerMode === "bro" && selected.lead ? (
+                      <BroPanel
+                        leadId={selected.lead.id}
+                        conversationId={selected.id}
+                        leadName={`${selected.lead.firstName} ${selected.lead.lastName ?? ""}`.trim()}
+                        onUseDraft={(text) => { setInput(text); setComposerMode("message"); setComposerFocused(true); }}
+                        onActed={() => router.refresh()}
+                      />
+                    ) : (<>
                     {/* Channel/mode label */}
                     <div className={cn(
                       "px-3 pt-2 pb-0.5 text-[11px] font-semibold",
@@ -1392,6 +1418,7 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                         </div>
                       </div>
                     )}
+                    </>)}
                   </motion.div>
                 ) : (
                   <motion.div
