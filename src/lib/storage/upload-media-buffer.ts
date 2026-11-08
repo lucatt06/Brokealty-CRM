@@ -1,4 +1,5 @@
 import { putFile } from "@/lib/storage/blob";
+import { toPlayableAudio } from "@/lib/storage/transcode-audio";
 
 // Mismo folder que los adjuntos del chat de prueba del bot — es el mismo
 // tipo de contenido (imágenes/documentos que aparecen en una conversación).
@@ -13,6 +14,8 @@ const EXT_BY_MIME: Record<string, string> = {
 
 /** Sube un Buffer (media descargada de un webhook, sin pasar por un <input type="file">) a los adjuntos del chat. */
 export async function uploadMediaBuffer(buffer: Buffer, mimetype: string): Promise<string> {
+  const converted = await toPlayableAudio(buffer, mimetype);
+  if (converted) return putFile(CHAT_FOLDER, converted.buffer, converted.mimetype, converted.ext);
   const ext = EXT_BY_MIME[mimetype] ?? mimetype.split("/")[1]?.split(";")[0] ?? "bin";
   return putFile(CHAT_FOLDER, buffer, mimetype, ext);
 }

@@ -13,6 +13,7 @@ const nextConfig = {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   experimental: {
+    serverComponentsExternalPackages: ["ffmpeg-static"],
     // Next 14 solo ejecuta src/instrumentation.ts (scheduler de jobs, sync de webhooks) con este flag.
     instrumentationHook: true,
     serverActions: {
