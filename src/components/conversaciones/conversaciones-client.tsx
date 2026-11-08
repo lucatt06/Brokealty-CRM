@@ -1,5 +1,11 @@
 "use client";
 
+import { EditableName } from "@/components/leads/editable-name";
+import {
+  DeletedBubble, LocationBubble, MessageMenu, PollBubble, PollModal, PropertyLocationModal, ReactionBadges,
+  type RichMsg,
+} from "@/components/conversaciones/whatsapp-rich-ui";
+import { editMessageText } from "@/app/actions/whatsapp-rich";
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -11,6 +17,7 @@ import {
   X, Car, Plus,
   Minimize2, Zap, FileText, Clock, Folder,
   Mic, AlertTriangle,
+  MapPin, BarChart3,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,9 +48,10 @@ export type Message = {
   direction: string; channel: string; content: string;
   mediaUrl: string | null; mediaType: string | null;
   isRead: boolean; status: string; sentAt: string;
+  meta?: unknown; reactions?: Record<string, string> | null; editedAt?: string | null; deletedAt?: string | null;
 };
 export type Stage = { id: string; name: string; color: string; order: number };
-export type PropertyOption = { id: string; title: string; priceDOP: number | null };
+export type PropertyOption = { id: string; title: string; priceDOP: number | null; hasLocation?: boolean };
 export type DealStage = { id: string; name: string; color: string };
 export type DealProperty = { title: string };
 export type Payment = {
@@ -342,6 +350,11 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
   conversations: Conversation[]; stages: Stage[]; pipelineId: string | null; properties: PropertyOption[];
 }) {
   const router = useRouter();
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [richError, setRichError] = useState("");
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
   const { decrement: decrementUnreadBadge } = useUnreadConversationsBadge();
   // Sin auto-selección: al entrar a Conversaciones se ve la lista vacía de chat
   // hasta que la persona elige con cuál conversación quiere entrar.
@@ -1030,6 +1043,7 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                       }
                       const msg = item.data;
                       const isOut = msg.direction === "OUTBOUND";
+                      const isWa = selected.channel === "WHATSAPP" || selected.channel === "WHATSAPP_PERSONAL";
                       const isFirstUnread = !msg.isRead && msg.direction === "INBOUND" && !shownNew;
                       if (isFirstUnread) shownNew = true;
                       const prevItem = group.items[i - 1];
@@ -1065,7 +1079,32 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                                   {selected.lead ? `${selected.lead.firstName} ${selected.lead.lastName ?? ""}`.trim() : "Contacto"}
                                 </span>
                               )}
-                              {msg.mediaType === "audio" && msg.mediaUrl ? (
+                              <div className="group relative max-w-full">
+                              <MessageMenu msg={msg as RichMsg} isOut={isOut} waCapable={isWa}
+                                onEdit={(m) => { setRichError(""); setEditing({ id: m.id, text: m.content }); }}
+                                onError={setRichError} />
+                              {msg.deletedAt ? (
+                                <DeletedBubble isOut={isOut} />
+                              ) : msg.mediaType === "location" ? (
+                                <LocationBubble msg={msg as RichMsg} isOut={isOut} />
+                              ) : msg.mediaType === "poll" ? (
+                                <PollBubble msg={msg as RichMsg} isOut={isOut} />
+                              ) : editing?.id === msg.id ? (
+                                <div className="flex flex-col gap-1.5 w-[260px]">
+                                  <textarea value={editing.text} onChange={(e) => setEditing({ id: msg.id, text: e.target.value })} autoFocus rows={3}
+                                    className="w-full border border-primary rounded-xl px-3 py-2 text-[13px] outline-none resize-none" />
+                                  <div className="flex justify-end gap-1.5">
+                                    <button onClick={() => setEditing(null)} className="text-[11.5px] px-2.5 py-1 rounded-md hover:bg-muted">Cancelar</button>
+                                    <button disabled={editBusy || !editing.text.trim()} onClick={async () => {
+                                      setEditBusy(true);
+                                      const r = await editMessageText(msg.id, editing.text);
+                                      setEditBusy(false);
+                                      if (!r.ok) { setRichError(r.error); return; }
+                                      setEditing(null); router.refresh();
+                                    }} className="text-[11.5px] px-2.5 py-1 rounded-md bg-primary text-white disabled:opacity-60">{editBusy ? "Guardando…" : "Guardar"}</button>
+                                  </div>
+                                </div>
+                              ) : msg.mediaType === "audio" && msg.mediaUrl ? (
                                 <div className={cn(
                                   "px-2.5 py-2 rounded-2xl flex items-center gap-2",
                                   isOut ? "bg-primary text-white rounded-tr-sm" : "bg-white border border-border/60 rounded-tl-sm shadow-sm"
@@ -1112,8 +1151,11 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                                   {msg.content}
                                 </div>
                               )}
+                              </div>
+                              <ReactionBadges reactions={msg.reactions} isOut={isOut} />
                               <div className={cn("flex items-center gap-1 mt-0.5 px-1", isOut ? "justify-end" : "justify-start")}>
                                 <span className="text-[10px] text-muted-foreground">{msgTime(msg.sentAt)}</span>
+                                {msg.editedAt && !msg.deletedAt && <span className="text-[10px] text-muted-foreground">· editado</span>}
                                 {isOut && <MessageStatusTick status={msg.status} />}
                               </div>
                             </div>
@@ -1126,6 +1168,15 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
               ))}
               <div ref={bottomRef} />
             </div>
+
+            {richError && (
+              <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> <span className="flex-1">{richError}</span>
+                <button onClick={() => setRichError("")} className="text-red-400 hover:text-red-600">✕</button>
+              </div>
+            )}
+            {locationOpen && selected && <PropertyLocationModal conversationId={selected.id} properties={properties} onClose={() => setLocationOpen(false)} />}
+            {pollOpen && selected && <PollModal conversationId={selected.id} onClose={() => setPollOpen(false)} />}
 
             {/* Composer */}
             <div className="bg-white border-t border-border">
@@ -1287,6 +1338,14 @@ export function ConversacionesClient({ conversations, stages, pipelineId, proper
                               <Icon className="h-4 w-4" />
                             </button>
                           ))}
+                          {composerMode === "message" && (selected.channel === "WHATSAPP" || selected.channel === "WHATSAPP_PERSONAL") && (
+                            <>
+                              <button title="Enviar ubicación de una propiedad" onClick={() => setLocationOpen(true)}
+                                className="p-1.5 text-muted-foreground/60 hover:text-emerald-600 rounded-md hover:bg-muted transition-colors"><MapPin className="h-4 w-4" /></button>
+                              <button title="Enviar encuesta" onClick={() => setPollOpen(true)}
+                                className="p-1.5 text-muted-foreground/60 hover:text-primary rounded-md hover:bg-muted transition-colors"><BarChart3 className="h-4 w-4" /></button>
+                            </>
+                          )}
                           {composerMode === "message" && (
                             <button onClick={startRecording} title="Nota de voz"
                               className="p-1.5 text-muted-foreground/50 hover:text-primary rounded-md hover:bg-muted transition-colors">
@@ -2087,7 +2146,6 @@ export function ContactDetails({ lead, conversation, showHeader = true }: { lead
     });
   }
 
-  const name = `${lead.firstName} ${lead.lastName ?? ""}`.trim();
   const initials = `${lead.firstName[0]}${lead.lastName?.[0] ?? ""}`.toUpperCase();
   const meta = CH[conversation.channel] ?? CH.INTERNO;
 
@@ -2106,7 +2164,7 @@ export function ContactDetails({ lead, conversation, showHeader = true }: { lead
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="font-semibold text-[13px] truncate">{name}</p>
+              <EditableName leadId={lead.id} firstName={lead.firstName} lastName={lead.lastName} phone={lead.phone} className="flex-1" />
               <Link href={`/leads/${lead.id}`} title="Ver ficha completa del lead"
                 className="text-muted-foreground shrink-0 hover:text-primary transition-colors">
                 <ExternalLink className="h-3 w-3" />

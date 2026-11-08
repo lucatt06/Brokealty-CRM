@@ -8,6 +8,7 @@ import { updateUserDetailsTool } from "../agent/tools/update-user-details";
 import { removeTagTool } from "../agent/tools/remove-tag";
 import { searchInventoryTool } from "../agent/tools/search-inventory";
 import { sendPropertyPhotosTool } from "../agent/tools/send-property-photos";
+import { sendPropertyLocationTool } from "../agent/tools/send-property-location";
 import { sendMessageAction } from "./handlers/send-message";
 import { addTagAction } from "./handlers/add-tag";
 import { changeStageAction } from "./handlers/change-stage";
@@ -32,6 +33,7 @@ export const ACTION_REGISTRY: Record<string, ActionDefinition> = {
   [removeTagTool.key]: removeTagTool,
   [searchInventoryTool.key]: searchInventoryTool,
   [sendPropertyPhotosTool.key]: sendPropertyPhotosTool,
+  [sendPropertyLocationTool.key]: sendPropertyLocationTool,
   [sendMessageAction.key]: sendMessageAction,
   [addTagAction.key]: addTagAction,
   [changeStageAction.key]: changeStageAction,

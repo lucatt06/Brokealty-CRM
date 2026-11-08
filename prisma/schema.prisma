@@ -570,6 +570,14 @@ model Message {
   status         MessageStatus @default(SENT)
   sentAt         DateTime      @default(now())
 
+  // Mensajes ricos de WhatsApp: ubicación {lat,lng,name,address} o encuesta {question,options}
+  // (se distinguen por mediaType "location" | "poll"). Nunca contiene secretos.
+  meta      Json?
+  // Reacciones por lado: { ME?: "👍", CONTACT?: "❤️" } (WhatsApp permite una por persona)
+  reactions Json?
+  editedAt  DateTime?
+  deletedAt DateTime? // borrado para todos; el registro se conserva como "Mensaje eliminado"
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User?        @relation(fields: [senderId], references: [id])
 

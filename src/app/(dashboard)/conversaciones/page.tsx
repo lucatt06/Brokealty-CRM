@@ -52,7 +52,7 @@ export default async function ConversacionesPage() {
     }),
     prisma.property.findMany({
       where: { workspaceId },
-      select: { id: true, title: true, priceDOP: true },
+      select: { id: true, title: true, priceDOP: true, latitude: true, longitude: true },
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
@@ -65,7 +65,7 @@ export default async function ConversacionesPage() {
     lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
-    messages: c.messages.map((m) => ({ ...m, sentAt: m.sentAt.toISOString() })),
+    messages: c.messages.map((m) => ({ ...m, sentAt: m.sentAt.toISOString(), reactions: (m.reactions ?? null) as Record<string, string> | null, editedAt: m.editedAt?.toISOString() ?? null, deletedAt: m.deletedAt?.toISOString() ?? null })),
     lead: c.lead ? {
       ...c.lead,
       activities: c.lead.activities.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })),
@@ -93,7 +93,7 @@ export default async function ConversacionesPage() {
       conversations={serialized}
       stages={stages}
       pipelineId={pipeline?.id ?? null}
-      properties={properties}
+      properties={properties.map(({ latitude, longitude, ...p }) => ({ ...p, hasLocation: latitude != null && longitude != null }))}
     />
   );
 }

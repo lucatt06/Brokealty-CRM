@@ -31,7 +31,7 @@ export async function setInstanceWebhook(instanceName: string, webhookUrl: strin
   return evolutionFetch(`/webhook/set/${instanceName}`, {
     method: "POST",
     body: JSON.stringify({
-      webhook: { enabled: true, url: webhookUrl, headers: webhookHeadersFor(instanceName), events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"] },
+      webhook: { enabled: true, url: webhookUrl, headers: webhookHeadersFor(instanceName), events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"] },
     }),
   });
 }
@@ -126,4 +126,58 @@ export async function sendWhatsAppReply(params: {
 
   await sendPresence(instanceName, remoteJid, "paused").catch(() => {});
   return result;
+}
+
+type EvolutionSendResult = { key?: { id?: string; remoteJid?: string; fromMe?: boolean } };
+export type WaKey = { remoteJid: string; fromMe: boolean; id: string };
+
+/** Marca varios mensajes entrantes como leídos de una sola vez (checks azules en el teléfono del cliente). */
+export async function markMessagesAsRead(instanceName: string, keys: WaKey[]) {
+  if (!keys.length) return;
+  return evolutionFetch(`/chat/markMessageAsRead/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({ readMessages: keys }),
+  });
+}
+
+export async function sendLocationMessage(
+  instanceName: string,
+  remoteJid: string,
+  loc: { latitude: number; longitude: number; name: string; address: string }
+) {
+  return evolutionFetch(`/message/sendLocation/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({ number: remoteJid, ...loc }),
+  }) as Promise<EvolutionSendResult>;
+}
+
+/** `reaction` vacío ("") quita la reacción. */
+export async function sendReactionMessage(instanceName: string, key: WaKey, reaction: string) {
+  return evolutionFetch(`/message/sendReaction/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({ key, reaction }),
+  }) as Promise<EvolutionSendResult>;
+}
+
+export async function sendPollMessage(instanceName: string, remoteJid: string, question: string, options: string[], selectableCount = 1) {
+  return evolutionFetch(`/message/sendPoll/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({ number: remoteJid, name: question, selectableCount, values: options }),
+  }) as Promise<EvolutionSendResult>;
+}
+
+/** Editar un mensaje propio de texto (WhatsApp lo permite hasta ~15 minutos después de enviarlo). */
+export async function editMessage(instanceName: string, remoteJid: string, key: WaKey, text: string) {
+  return evolutionFetch(`/chat/updateMessage/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({ number: remoteJid, key, text }),
+  });
+}
+
+/** "Eliminar para todos" (WhatsApp lo permite hasta ~2 días después). */
+export async function deleteMessageForEveryone(instanceName: string, key: WaKey) {
+  return evolutionFetch(`/chat/deleteMessageForEveryone/${instanceName}`, {
+    method: "DELETE",
+    body: JSON.stringify(key),
+  });
 }

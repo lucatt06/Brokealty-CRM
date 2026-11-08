@@ -17,7 +17,7 @@ import {
 import {
   createProperty, updateProperty, updatePropertyStatus, deleteProperty, duplicateProperty,
   addPropertyPhoto, removePropertyPhoto, setPrimaryPhoto, reorderPropertyPhotos,
-  setPropertyTags, createTag,
+  setPropertyTags, createTag, resolveMapsLink,
 } from "@/app/actions/properties";
 import { uploadPropertyPhotoFile, resolvePhotoUrl } from "@/app/actions/storage";
 import {
@@ -36,6 +36,7 @@ type Property = {
   id: string; sku: string | null; status: PropertyStatus;
   propertyType: PropertyType; listingType: ListingType; title: string; projectName: string | null;
   province: string | null; city: string | null; sector: string | null; address: string | null;
+  latitude: number | null; longitude: number | null;
   bedrooms: number | null; bathrooms: number | null; parkingSpaces: number | null;
   constructionM2: number | null; landM2: number | null; floorNumber: number | null; yearBuilt: number | null;
   furnished: boolean;
@@ -290,6 +291,9 @@ function PropertyPanel({ property, tags, members, onClose }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(property?.tags.map((t) => t.id) ?? []);
   const [newTagName, setNewTagName] = useState("");
+  const [mapsInput, setMapsInput] = useState("");
+  const [mapsBusy, setMapsBusy] = useState(false);
+  const [mapsError, setMapsError] = useState("");
 
   const [form, setForm] = useState({
     title: property?.title ?? "",
@@ -302,6 +306,8 @@ function PropertyPanel({ property, tags, members, onClose }: {
     city: property?.city ?? "",
     sector: property?.sector ?? "",
     address: property?.address ?? "",
+    latitude: (property?.latitude ?? "") as number | "",
+    longitude: (property?.longitude ?? "") as number | "",
     bedrooms: (property?.bedrooms ?? "") as number | "",
     bathrooms: (property?.bathrooms ?? "") as number | "",
     parkingSpaces: (property?.parkingSpaces ?? "") as number | "",
@@ -325,6 +331,15 @@ function PropertyPanel({ property, tags, members, onClose }: {
     features: property?.features ?? ([] as string[]),
   });
   const setF = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+
+  async function handleResolveMaps() {
+    setMapsBusy(true); setMapsError("");
+    const result = await resolveMapsLink(mapsInput);
+    setMapsBusy(false);
+    if (!result.ok) { setMapsError(result.error); return; }
+    setForm((f) => ({ ...f, latitude: result.latitude, longitude: result.longitude }));
+    setMapsInput("");
+  }
 
   function toggleFeature(val: string) {
     setF("features", form.features.includes(val) ? form.features.filter((f) => f !== val) : [...form.features, val]);
@@ -408,6 +423,8 @@ function PropertyPanel({ property, tags, members, onClose }: {
       city: form.city || null,
       sector: form.sector || null,
       address: form.address || null,
+      latitude: numOrNull(form.latitude),
+      longitude: numOrNull(form.longitude),
       bedrooms: numOrNull(form.bedrooms),
       bathrooms: numOrNull(form.bathrooms),
       parkingSpaces: numOrNull(form.parkingSpaces),
@@ -568,6 +585,23 @@ function PropertyPanel({ property, tags, members, onClose }: {
             </div>
             <div><label className={labelCls}>Sector / zona</label><input value={form.sector} onChange={(e) => setF("sector", e.target.value)} placeholder="Naco, Piantini, Bávaro…" className={inputCls} /></div>
             <div><label className={labelCls}>Dirección (interna)</label><input value={form.address} onChange={(e) => setF("address", e.target.value)} className={inputCls} /></div>
+            <div className="space-y-2">
+              <label className={labelCls}>Ubicación en el mapa (para enviarla por WhatsApp)</label>
+              <div className="flex gap-1.5">
+                <input value={mapsInput} onChange={(e) => setMapsInput(e.target.value)} placeholder="Pega un enlace de Google Maps o 18.4861, -69.9312" className={inputCls} />
+                <Button size="sm" variant="outline" onClick={handleResolveMaps} disabled={mapsBusy || !mapsInput.trim()} className="h-[30px] px-2.5 shrink-0">
+                  {mapsBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Obtener"}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={labelCls}>Latitud</label><NumInput value={form.latitude} onChange={(v) => setF("latitude", v)} step="any" /></div>
+                <div><label className={labelCls}>Longitud</label><NumInput value={form.longitude} onChange={(v) => setF("longitude", v)} step="any" /></div>
+              </div>
+              {mapsError && <p className="text-[11px] text-red-500">{mapsError}</p>}
+              {form.latitude !== "" && form.longitude !== "" && (
+                <a href={`https://www.google.com/maps?q=${form.latitude},${form.longitude}`} target="_blank" rel="noreferrer" className="text-[11px] text-primary hover:underline">Ver en Google Maps</a>
+              )}
+            </div>
           </Section>
 
           <Section title="Características">

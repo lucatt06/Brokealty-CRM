@@ -10,6 +10,8 @@ import { getDefaultPipelineEntryStage } from "@/lib/leads/default-deal";
 import { uploadMediaBuffer } from "@/lib/storage/upload-media-buffer";
 import { transcribeAudioUrl } from "@/lib/openai/transcribe";
 import { applyMessageStatusUpdate, type ResolvedMessageStatus } from "@/lib/messaging/status";
+import { hasPlaceholderName, splitDisplayName } from "@/lib/leads/contact-name";
+import { applyInboundReaction, applyInboundRevoke, evolutionLocation, pollInbound, type RichInbound } from "@/lib/messaging/rich-inbound";
 
 type EvolutionMediaPayload = { mimetype?: string; caption?: string; fileName?: string };
 
@@ -26,6 +28,11 @@ type EvolutionMessageUpsertBody = {
       documentMessage?: EvolutionMediaPayload;
       audioMessage?: EvolutionMediaPayload;
       stickerMessage?: EvolutionMediaPayload;
+      locationMessage?: { degreesLatitude?: number; degreesLongitude?: number; name?: string; address?: string };
+      liveLocationMessage?: { degreesLatitude?: number; degreesLongitude?: number; caption?: string };
+      pollCreationMessage?: { name?: string; options?: { optionName?: string }[] };
+      pollCreationMessageV3?: { name?: string; options?: { optionName?: string }[] };
+      reactionMessage?: { key?: { id?: string }; text?: string };
     };
   };
 };
@@ -35,6 +42,16 @@ function extractText(data: EvolutionMessageUpsertBody["data"]) {
 }
 
 type MediaKind = "image" | "video" | "document" | "audio";
+
+/** Ubicación o encuesta recibidas — se guardan como texto legible + meta estructurada. */
+function extractRich(data: EvolutionMessageUpsertBody["data"]): RichInbound | null {
+  const m = data.message;
+  if (!m) return null;
+  if (m.locationMessage) return evolutionLocation(m.locationMessage);
+  if (m.liveLocationMessage) return evolutionLocation({ degreesLatitude: m.liveLocationMessage.degreesLatitude, degreesLongitude: m.liveLocationMessage.degreesLongitude, name: m.liveLocationMessage.caption });
+  const poll = m.pollCreationMessage ?? m.pollCreationMessageV3;
+  return poll ? pollInbound(poll) : null;
+}
 
 const MEDIA_PLACEHOLDER: Record<MediaKind, string> = {
   image: "📷 Imagen", video: "🎥 Video", document: "📄 Documento", audio: "🎤 Nota de voz",
@@ -101,6 +118,60 @@ async function handleMessageUpdate(body: EvolutionMessageUpdateBody) {
   }
 }
 
+/**
+ * Evolution intercepta los protocolMessage (edición y borrado "para todos") y los emite como
+ * MESSAGES_EDITED en vez de MESSAGES_UPSERT. `type`: 0/"REVOKE" = borrado, 14/"MESSAGE_EDIT" = edición.
+ */
+type EvolutionProtocolBody = {
+  event: string;
+  instance: string;
+  data: {
+    key?: { id?: string };
+    type?: number | string;
+    editedMessage?: { conversation?: string; extendedTextMessage?: { text?: string } };
+  };
+};
+
+async function workspaceForInstance(instance: string) {
+  const integration = await prisma.integration.findFirst({
+    where: { type: "WHATSAPP_EVOLUTION", config: { path: ["instanceName"], equals: instance } },
+    select: { workspaceId: true },
+  });
+  return integration?.workspaceId ?? null;
+}
+
+async function handleMessageEdited(body: EvolutionProtocolBody) {
+  const targetId = body.data?.key?.id;
+  if (!targetId) return;
+  const workspaceId = await workspaceForInstance(body.instance);
+  if (!workspaceId) return;
+
+  const type = body.data.type;
+  if (type === 0 || type === "REVOKE") {
+    await applyInboundRevoke(workspaceId, targetId);
+    return;
+  }
+  const newText = body.data.editedMessage?.conversation ?? body.data.editedMessage?.extendedTextMessage?.text;
+  if (newText?.trim()) {
+    // Solo mensajes de texto: un adjunto con pie editado conserva su tipo, el texto es el pie.
+    await prisma.message.updateMany({
+      // `mediaType` nulo = texto plano. Ojo: `NOT { mediaType: { in } }` excluiría los NULL (lógica de 3 valores de SQL).
+      where: {
+        externalId: targetId, conversation: { workspaceId }, deletedAt: null,
+        OR: [{ mediaType: null }, { mediaType: { notIn: ["location", "poll"] } }],
+      },
+      data: { content: newText.trim(), editedAt: new Date() },
+    });
+  }
+}
+
+async function handleMessageDelete(body: { instance: string; data: { id?: string; key?: { id?: string } } }) {
+  const targetId = body.data?.id ?? body.data?.key?.id;
+  if (!targetId) return;
+  const workspaceId = await workspaceForInstance(body.instance);
+  if (workspaceId) await applyInboundRevoke(workspaceId, targetId);
+}
+
 async function handleConnectionUpdate(body: EvolutionConnectionUpdateBody) {
   const integration = await prisma.integration.findFirst({
     where: { type: "WHATSAPP_EVOLUTION", config: { path: ["instanceName"], equals: body.instance } },
@@ -130,6 +201,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body.event === "messages.edited") {
+    await handleMessageEdited(body as unknown as EvolutionProtocolBody);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body.event === "messages.delete") {
+    await handleMessageDelete(body as unknown as { instance: string; data: { id?: string; key?: { id?: string } } });
+    return NextResponse.json({ ok: true });
+  }
+
   if (body.event === "messages.update") {
     await handleMessageUpdate(body as EvolutionMessageUpdateBody);
     return NextResponse.json({ ok: true });
@@ -149,14 +230,22 @@ export async function POST(req: NextRequest) {
 
   const text = extractText(data).trim();
   const media = extractMedia(data);
+  const rich = extractRich(data);
+  const reaction = data.message?.reactionMessage;
   const remoteJid = data.key.remoteJid;
   const phone = remoteJid?.split("@")[0];
-  if ((!text && !media) || !phone) return NextResponse.json({ ok: true });
+  if ((!text && !media && !rich && !reaction) || !phone) return NextResponse.json({ ok: true });
 
   const integration = await prisma.integration.findFirst({
     where: { type: "WHATSAPP_EVOLUTION", config: { path: ["instanceName"], equals: instance } },
   });
   if (!integration) return NextResponse.json({ ok: true, warning: "instancia no reconocida" });
+
+  // Una reacción no crea mensaje nuevo: actualiza el reaccionado.
+  if (reaction?.key?.id) {
+    await applyInboundReaction(integration.workspaceId, reaction.key.id, reaction.text ?? "", isFromMe);
+    return NextResponse.json({ ok: true });
+  }
 
   // Evolution (y en general cualquier proveedor de webhooks) puede reentregar el mismo evento
   // más de una vez, y además reenvía el mismo mensaje fromMe:true que nosotros ya enviamos.
@@ -169,14 +258,22 @@ export async function POST(req: NextRequest) {
 
   const workspaceId = integration.workspaceId;
 
+  const contactName = splitDisplayName(data.pushName);
   let lead = await prisma.lead.findFirst({ where: { workspaceId, phone } });
+  // Contacto que ya existía solo con el teléfono como nombre: ahora WhatsApp trae el nombre real.
+  if (lead && !isFromMe && contactName && hasPlaceholderName(lead)) {
+    lead = await prisma.lead.update({ where: { id: lead.id }, data: { firstName: contactName.firstName, lastName: contactName.lastName } });
+    await prisma.activity.create({ data: { workspaceId, leadId: lead.id, type: "LEAD_UPDATED", description: `Nombre actualizado desde WhatsApp: ${contactName.firstName}${contactName.lastName ? " " + contactName.lastName : ""}` } });
+  }
   if (!lead) {
     const entryStage = await getDefaultPipelineEntryStage(workspaceId);
     lead = await prisma.$transaction(async (tx) => {
       const created = await tx.lead.create({
         data: {
           workspaceId,
-          firstName: isFromMe ? phone : (data.pushName?.trim() || phone),
+          // En un mensaje enviado por nosotros (fromMe) `pushName` es NUESTRO nombre, no el del cliente.
+          firstName: (isFromMe ? null : contactName?.firstName) ?? phone,
+          lastName: (isFromMe ? null : contactName?.lastName) ?? null,
           phone,
           source: "WHATSAPP",
           stage: ENTRY_STAGE_NAME,
@@ -250,6 +347,8 @@ export async function POST(req: NextRequest) {
     if (!content) content = MEDIA_PLACEHOLDER[media.kind];
   }
 
+  if (rich && !content) content = rich.content;
+
   await prisma.message.create({
     data: {
       conversationId: conversation.id,
@@ -257,7 +356,8 @@ export async function POST(req: NextRequest) {
       channel: "WHATSAPP_PERSONAL",
       content,
       mediaUrl,
-      mediaType,
+      mediaType: rich?.kind ?? mediaType,
+      meta: rich?.meta,
       isRead: isFromMe,
       externalId: data.key.id,
     },

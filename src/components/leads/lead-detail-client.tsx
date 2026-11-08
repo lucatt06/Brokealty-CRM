@@ -1,5 +1,6 @@
 "use client";
 
+import { EditableName } from "@/components/leads/editable-name";
 import { stageBadgeClass } from "@/lib/pipeline/default-stages";
 import { desiredSummary } from "@/lib/properties/labels";
 import type { ListingType, PropertyType } from "@prisma/client";
@@ -420,7 +421,7 @@ function ContactDetailsPanel({ lead, users, workspaceId, conversation }: {
             <AvatarFallback className="text-sm font-bold bg-primary/10 text-primary">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-[13px] truncate">{fullName}</p>
+            <EditableName leadId={lead.id} firstName={lead.firstName} lastName={lead.lastName} phone={lead.phone} />
             <p className="text-[11px] text-muted-foreground">{lead.phone}</p>
           </div>
         </div>

@@ -90,7 +90,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
-      messages: c.messages.map((m) => ({ ...m, sentAt: m.sentAt.toISOString() })),
+      messages: c.messages.map((m) => ({ ...m, sentAt: m.sentAt.toISOString(), reactions: (m.reactions ?? null) as Record<string, string> | null, editedAt: m.editedAt?.toISOString() ?? null, deletedAt: m.deletedAt?.toISOString() ?? null })),
     })),
   };
 

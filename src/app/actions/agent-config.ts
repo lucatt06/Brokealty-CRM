@@ -78,6 +78,7 @@ const BUILT_IN_TOOLS: Omit<Prisma.AgentToolCreateManyInput, "workspaceId">[] = [
   { key: "remove_tag", name: "Remove Tag", description: "Removes a tag from the contact's record", category: "REMOVE_TAG", method: "POST", examplePrompt: "This lead is no longer interested.", isBuiltIn: true },
   { key: "search_inventory", name: "Search Inventory", description: "Busca propiedades disponibles en el catálogo por tipo, zona, habitaciones o precio", category: "PLATFORM", method: "POST", examplePrompt: "¿Qué apartamentos de 3 habitaciones tienen en Naco?", isBuiltIn: true },
   { key: "send_property_photos", name: "Send Property Photos", description: "Envía las fotos de una propiedad del catálogo al contacto", category: "PLATFORM", method: "POST", examplePrompt: "¿Me puedes mandar fotos de esa propiedad?", isBuiltIn: true },
+  { key: "send_property_location", name: "Send Property Location", description: "Envía el pin de ubicación de una propiedad del catálogo al contacto por WhatsApp", category: "PLATFORM", method: "POST", examplePrompt: "¿Me mandas la ubicación del apartamento?", isBuiltIn: true },
 ];
 
 export async function ensureBuiltInTools(workspaceId: string) {

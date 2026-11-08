@@ -6,6 +6,8 @@ import { getMediaUrl, downloadMedia, sendWhatsAppCloudReply } from "@/lib/whatsa
 import { getWorkspaceWhatsAppCloudConfig } from "@/lib/integrations/whatsapp-cloud-config";
 import { verifyMetaSignature } from "@/lib/whatsapp-cloud/verify-signature";
 import { applyMessageStatusUpdate, type ResolvedMessageStatus } from "@/lib/messaging/status";
+import { hasPlaceholderName, splitDisplayName } from "@/lib/leads/contact-name";
+import { applyInboundReaction, locationInbound } from "@/lib/messaging/rich-inbound";
 import { scheduleTask, cancelScheduledTask } from "@/lib/jobs/scheduled-tasks";
 import { fireAutomationTrigger } from "@/lib/jobs/run-automations";
 import { getDefaultPipelineEntryStage } from "@/lib/leads/default-deal";
@@ -24,6 +26,8 @@ type CloudMessage = {
   document?: CloudMediaPayload;
   audio?: CloudMediaPayload;
   sticker?: CloudMediaPayload;
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  reaction?: { message_id?: string; emoji?: string };
 };
 
 type CloudStatus = { id: string; status: string };
@@ -122,21 +126,32 @@ async function handleChangeValue(value: CloudChangeValue) {
 async function handleInboundMessage(workspaceId: string, message: CloudMessage, contacts: CloudChangeValue["contacts"]) {
   const text = message.text?.body?.trim() ?? "";
   const media = extractMedia(message);
+  const rich = message.location ? locationInbound(message.location) : null;
   const phone = message.from;
-  if ((!text && !media) || !phone) return;
+  if ((!text && !media && !rich && !message.reaction) || !phone) return;
+
+  // La reacción del cliente actualiza el mensaje reaccionado; no crea uno nuevo.
+  if (message.reaction?.message_id) {
+    await applyInboundReaction(workspaceId, message.reaction.message_id, message.reaction.emoji ?? "", false);
+    return;
+  }
 
   // Meta puede reentregar el mismo evento más de una vez — sin este dedup se
   // duplicaría el mensaje y, si fuera un turno del bot, respondería dos veces.
   const alreadyProcessed = await prisma.message.findFirst({ where: { externalId: message.id, channel: "WHATSAPP" } });
   if (alreadyProcessed) return;
 
+  const profileName = splitDisplayName(contacts?.find((c) => c.wa_id === phone)?.profile?.name);
   let lead = await prisma.lead.findFirst({ where: { workspaceId, phone } });
+  if (lead && profileName && hasPlaceholderName(lead)) {
+    lead = await prisma.lead.update({ where: { id: lead.id }, data: { firstName: profileName.firstName, lastName: profileName.lastName } });
+    await prisma.activity.create({ data: { workspaceId, leadId: lead.id, type: "LEAD_UPDATED", description: `Nombre actualizado desde WhatsApp: ${profileName.firstName}${profileName.lastName ? " " + profileName.lastName : ""}` } });
+  }
   if (!lead) {
-    const pushName = contacts?.find((c) => c.wa_id === phone)?.profile?.name;
     const entryStage = await getDefaultPipelineEntryStage(workspaceId);
     lead = await prisma.$transaction(async (tx) => {
       const created = await tx.lead.create({
-        data: { workspaceId, firstName: pushName?.trim() || phone, phone, source: "WHATSAPP", stage: ENTRY_STAGE_NAME, score: 0 },
+        data: { workspaceId, firstName: profileName?.firstName ?? phone, lastName: profileName?.lastName ?? null, phone, source: "WHATSAPP", stage: ENTRY_STAGE_NAME, score: 0 },
       });
       if (entryStage) {
         await tx.deal.create({
@@ -194,10 +209,12 @@ async function handleInboundMessage(workspaceId: string, message: CloudMessage, 
     if (!content) content = MEDIA_PLACEHOLDER[media.kind];
   }
 
+  if (rich && !content) content = rich.content;
+
   await prisma.message.create({
     data: {
       conversationId: conversation.id, direction: "INBOUND", channel: "WHATSAPP",
-      content, mediaUrl, mediaType, isRead: false, externalId: message.id,
+      content, mediaUrl, mediaType: rich?.kind ?? mediaType, meta: rich?.meta, isRead: false, externalId: message.id,
     },
   });
   await prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: new Date() } });

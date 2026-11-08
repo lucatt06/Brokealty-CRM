@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getActiveWorkspace } from "@/lib/auth/active-workspace";
 import { runMatchInverso } from "@/lib/jobs/match-inverso";
+import { isGoogleMapsHost, parseCoords } from "@/lib/maps/parse-coords";
+import { readTextCapped, safeFetch } from "@/lib/net/safe-fetch";
 import type { ListingType, PropertyStatus, PropertyType } from "@prisma/client";
 
 export type PropertyInput = {
@@ -17,6 +19,8 @@ export type PropertyInput = {
   city?: string | null;
   sector?: string | null;
   address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   parkingSpaces?: number | null;
@@ -58,6 +62,10 @@ const clean = (v?: string | null) => v?.trim() || null;
 function toData(d: PropertyInput) {
   const title = d.title.trim();
   if (!title) throw new Error("El título es obligatorio.");
+  const lat = d.latitude ?? null;
+  const lng = d.longitude ?? null;
+  if ((lat == null) !== (lng == null)) throw new Error("Indica latitud y longitud, o ninguna de las dos.");
+  if (lat != null && lng != null && !(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) throw new Error("Coordenadas fuera de rango.");
   return {
     sku: clean(d.sku),
     propertyType: d.propertyType,
@@ -68,6 +76,8 @@ function toData(d: PropertyInput) {
     city: clean(d.city),
     sector: clean(d.sector),
     address: clean(d.address),
+    latitude: d.latitude ?? null,
+    longitude: d.longitude ?? null,
     bedrooms: d.bedrooms ?? null,
     bathrooms: d.bathrooms ?? null,
     parkingSpaces: d.parkingSpaces ?? null,
@@ -292,4 +302,35 @@ export async function createTag(name: string, color = "#2563EB") {
   });
   revalidatePath("/inventario");
   return tag;
+}
+
+// ── Coordenadas desde un enlace de Google Maps ─────────────────────────
+type CoordsResult = { ok: true; latitude: number; longitude: number } | { ok: false; error: string };
+
+/**
+ * Lee la coordenada de un enlace pegado por el usuario. Los enlaces cortos (maps.app.goo.gl) se
+ * siguen en el servidor, pero SOLO hacia hosts de Google y con la protección SSRF de safeFetch;
+ * esta acción no sirve para consultar URLs arbitrarias.
+ */
+export async function resolveMapsLink(input: string): Promise<CoordsResult> {
+  await requireWorkspaceId();
+  const text = input.trim();
+  if (!text || text.length > 2000) return { ok: false, error: "Pega un enlace de Google Maps o las coordenadas (18.4861, -69.9312)." };
+
+  const direct = parseCoords(text);
+  if (direct) return { ok: true, ...direct };
+
+  if (!isGoogleMapsHost(text)) return { ok: false, error: "Solo se aceptan enlaces de Google Maps o coordenadas." };
+  try {
+    const res = await safeFetch(text, { timeoutMs: 6000 });
+    const fromUrl = parseCoords(res.url);
+    if (fromUrl) return { ok: true, ...fromUrl };
+    // Algunos enlaces devuelven la coordenada dentro del HTML (og:image / meta).
+    const html = await readTextCapped(res, 300_000);
+    const fromHtml = parseCoords(html.match(/[?&]center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/)?.slice(1, 3).join(",") ?? "");
+    if (fromHtml) return { ok: true, ...fromHtml };
+  } catch (e) {
+    console.error("[maps] no se pudo resolver el enlace:", e instanceof Error ? e.message : e);
+  }
+  return { ok: false, error: "No pude leer la ubicación de ese enlace. Abre el sitio en Google Maps, copia las coordenadas y pégalas aquí." };
 }

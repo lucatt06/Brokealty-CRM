@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanDisplayName } from "@/lib/leads/contact-name";
 import { assertMember, assertOwns, assertWorkspace, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
@@ -123,4 +124,18 @@ export async function deactivateLead(leadId: string) {
   await assertOwns("lead", leadId, ctx.workspace.id);
   await prisma.lead.update({ where: { id: leadId }, data: { isActive: false } });
   revalidatePath("/leads");
+}
+
+/** Edita el nombre del contacto. Devuelve `{ ok, error }` (en producción Next oculta el texto de los errores lanzados). */
+export async function updateLeadName(leadId: string, firstName: string, lastName: string | null): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireCtx();
+  await assertOwns("lead", leadId, ctx.workspace.id);
+  const first = cleanDisplayName(firstName);
+  const last = cleanDisplayName(lastName) || null;
+  if (!first) return { ok: false, error: "El nombre no puede estar vacío." };
+  await prisma.lead.update({ where: { id: leadId }, data: { firstName: first, lastName: last } });
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/conversaciones");
+  return { ok: true };
 }

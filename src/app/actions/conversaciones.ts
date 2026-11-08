@@ -3,7 +3,7 @@
 import { assertOwns, requireCtx } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { sendOutboundWhatsApp } from "@/lib/messaging/send-outbound";
+import { markInboundMessagesRead, sendOutboundWhatsApp } from "@/lib/messaging/send-outbound";
 import { cancelScheduledTask } from "@/lib/jobs/scheduled-tasks";
 import { getWorkspaceResendConfig } from "@/lib/integrations/resend-config";
 import { sendEmail } from "@/lib/resend/client";
@@ -99,6 +99,15 @@ export async function setConversationAiHandled(conversationId: string, isAiHandl
 export async function markConversationRead(conversationId: string) {
   const ctx = await requireCtx();
   await assertOwns("conversation", conversationId, ctx.workspace.id);
+
+  // Los mensajes entrantes que aún no se leían: además de marcarlos en el CRM, se avisa a WhatsApp
+  // para que el cliente vea los checks azules cuando el equipo abre la conversación.
+  const unread = await prisma.message.findMany({
+    where: { conversationId, direction: "INBOUND", isRead: false },
+    orderBy: { sentAt: "asc" },
+    take: 50,
+    select: { externalId: true },
+  });
   await prisma.message.updateMany({
     where: {
       conversationId,
@@ -107,6 +116,15 @@ export async function markConversationRead(conversationId: string) {
     },
     data: { isRead: true },
   });
+
+  const externalIds = unread.map((m) => m.externalId).filter((id): id is string => !!id);
+  if (externalIds.length) {
+    const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { workspaceId: true, channel: true, externalId: true } });
+    if (conversation?.externalId && (conversation.channel === "WHATSAPP_PERSONAL" || conversation.channel === "WHATSAPP")) {
+      await markInboundMessagesRead({ workspaceId: conversation.workspaceId, channel: conversation.channel, remoteId: conversation.externalId, externalIds })
+        .catch((err) => console.error("No se pudo enviar el acuse de lectura a WhatsApp:", err instanceof Error ? err.message : err));
+    }
+  }
   revalidatePath("/conversaciones");
   revalidatePath("/");
 }

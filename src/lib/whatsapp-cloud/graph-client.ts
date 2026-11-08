@@ -103,3 +103,31 @@ export async function sendImageMessage(phoneNumberId: string, accessToken: strin
     }),
   }) as Promise<{ messages?: { id: string }[] }>;
 }
+
+export async function sendLocationMessage(
+  phoneNumberId: string, accessToken: string, to: string,
+  loc: { latitude: number; longitude: number; name: string; address: string }
+) {
+  return graphFetch(`/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "location", location: loc }),
+  }) as Promise<{ messages?: { id: string }[] }>;
+}
+
+/** `emoji` vacío quita la reacción. */
+export async function sendReactionMessage(phoneNumberId: string, accessToken: string, to: string, messageId: string, emoji: string) {
+  return graphFetch(`/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "reaction", reaction: { message_id: messageId, emoji } }),
+  }) as Promise<{ messages?: { id: string }[] }>;
+}
+
+export async function markMessageRead(phoneNumberId: string, accessToken: string, messageId: string) {
+  return graphFetch(`/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ messaging_product: "whatsapp", status: "read", message_id: messageId }),
+  });
+}
