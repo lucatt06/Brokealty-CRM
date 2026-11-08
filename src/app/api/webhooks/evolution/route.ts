@@ -23,6 +23,7 @@ type EvolutionMessageUpsertBody = {
     pushName?: string;
     message?: {
       conversation?: string; extendedTextMessage?: { text?: string };
+      base64?: string;
       imageMessage?: EvolutionMediaPayload;
       videoMessage?: EvolutionMediaPayload;
       documentMessage?: EvolutionMediaPayload;
@@ -314,10 +315,24 @@ export async function POST(req: NextRequest) {
   let content = text;
   if (media) {
     try {
-      const downloaded = await getBase64FromMediaMessage(instance, data.key.id);
-      if (downloaded.base64) {
-        const mimetype = downloaded.mimetype || media.payload.mimetype || "application/octet-stream";
-        mediaUrl = await uploadMediaBuffer(Buffer.from(downloaded.base64, "base64"), mimetype);
+      // 1) Evolution manda la media en el propio webhook (base64: true). 2) Si no, se pide por API con
+      // reintentos: el webhook puede llegar antes de que Evolution termine de guardar el mensaje ("Message not found").
+      const inline = data.message?.base64;
+      let base64: string | undefined = typeof inline === "string" && inline.length > 0 ? inline : undefined;
+      let mimetype: string | undefined;
+      for (let attempt = 0; !base64 && attempt < 4; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+        try {
+          const downloaded = await getBase64FromMediaMessage(instance, data.key.id);
+          base64 = downloaded.base64;
+          mimetype = downloaded.mimetype;
+        } catch (err) {
+          if (attempt === 3) throw err;
+        }
+      }
+      if (base64) {
+        const mime = mimetype || media.payload.mimetype || "application/octet-stream";
+        mediaUrl = await uploadMediaBuffer(Buffer.from(base64.replace(/^data:[^,]*,/, ""), "base64"), mime);
         mediaType = media.kind;
       }
     } catch (err) {

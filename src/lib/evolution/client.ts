@@ -31,7 +31,7 @@ export async function setInstanceWebhook(instanceName: string, webhookUrl: strin
   return evolutionFetch(`/webhook/set/${instanceName}`, {
     method: "POST",
     body: JSON.stringify({
-      webhook: { enabled: true, url: webhookUrl, headers: webhookHeadersFor(instanceName), events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"] },
+      webhook: { enabled: true, url: webhookUrl, headers: webhookHeadersFor(instanceName), base64: true, events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_EDITED", "MESSAGES_DELETE", "CONNECTION_UPDATE"] },
     }),
   });
 }

@@ -7,7 +7,7 @@ import { setInstanceWebhook } from "@/lib/evolution/client";
  * instancia y no lo actualiza solo. Se ejecuta al arrancar la app; es idempotente y cada
  * instancia se marca con la versión aplicada para no repetirlo en cada despliegue.
  */
-export const EVOLUTION_WEBHOOK_VERSION = 2; // 2 = + MESSAGES_EDITED y MESSAGES_DELETE
+export const EVOLUTION_WEBHOOK_VERSION = 3; // 2 = + MESSAGES_EDITED y MESSAGES_DELETE · 3 = + base64 de la media en el payload
 
 type Config = { instanceName?: string; webhookVersion?: number; [k: string]: unknown };
 
