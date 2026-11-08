@@ -68,10 +68,19 @@ export async function sendPresence(instanceName: string, remoteJid: string, pres
 }
 
 /** Descarga y descifra un mensaje de media (imagen/video/documento/audio) recibido por WhatsApp. */
-export async function getBase64FromMediaMessage(instanceName: string, messageId: string) {
+/**
+ * Descarga y descifra la media de un mensaje. Si se pasa `full` (key + message tal como llegó en el webhook),
+ * Evolution la descifra con esos datos y NO necesita encontrar el mensaje en su base de datos
+ * (que puede no estar guardado todavía, o no guardarse nunca).
+ */
+export async function getBase64FromMediaMessage(
+  instanceName: string,
+  messageId: string,
+  full?: { key: unknown; message: unknown }
+) {
   return evolutionFetch(`/chat/getBase64FromMediaMessage/${instanceName}`, {
     method: "POST",
-    body: JSON.stringify({ message: { key: { id: messageId } } }),
+    body: JSON.stringify({ message: full ?? { key: { id: messageId } } }),
   }) as Promise<{ base64?: string; mimetype?: string }>;
 }
 

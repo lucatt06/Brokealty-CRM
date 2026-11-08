@@ -323,7 +323,8 @@ export async function POST(req: NextRequest) {
       for (let attempt = 0; !base64 && attempt < 4; attempt++) {
         if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
         try {
-          const downloaded = await getBase64FromMediaMessage(instance, data.key.id);
+          // Primero con el mensaje completo del webhook (no depende de la BD de Evolution); luego por id.
+          const downloaded = await getBase64FromMediaMessage(instance, data.key.id, attempt % 2 === 0 ? { key: data.key, message: data.message } : undefined);
           base64 = downloaded.base64;
           mimetype = downloaded.mimetype;
         } catch (err) {
